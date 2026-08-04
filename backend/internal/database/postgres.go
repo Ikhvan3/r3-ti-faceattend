@@ -50,6 +50,19 @@ func (c *Client) Close() {
 	c.closeLocked()
 }
 
+func (c *Client) Pool(ctx context.Context) (*pgxpool.Pool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.pool == nil {
+		if err := c.connect(ctx); err != nil {
+			return nil, err
+		}
+	}
+
+	return c.pool, nil
+}
+
 func (c *Client) connect(ctx context.Context) error {
 	connectCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

@@ -151,3 +151,57 @@ Constraint dan index:
   `INACTIVE`, atau `SUSPENDED`.
 - Check constraint `*_not_empty` memastikan nilai wajib tidak hanya string
   kosong atau spasi.
+
+## Seed Admin Lokal
+
+Seed admin dijalankan setelah migration `users` sudah diterapkan. Command
+`seed-admin` tidak menjalankan migration otomatis dan tidak membuat tabel baru.
+
+Environment yang dibutuhkan:
+
+- `ADMIN_EMPLOYEE_NUMBER`
+- `ADMIN_NAME`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `ADMIN_POSITION`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_SSLMODE`
+
+Password admin development minimal 8 karakter. Password di-hash dengan bcrypt
+sebelum disimpan ke kolom `password_hash`.
+
+Contoh menjalankan melalui PowerShell:
+
+```powershell
+cd backend
+$env:ADMIN_EMPLOYEE_NUMBER="ADMIN-LOCAL"
+$env:ADMIN_NAME="Admin Lokal"
+$env:ADMIN_EMAIL="admin.local@example.test"
+$env:ADMIN_PASSWORD="minimal-8-karakter"
+$env:ADMIN_POSITION="Administrator TI"
+go run ./cmd/seed-admin
+go run ./cmd/seed-admin
+Remove-Item Env:ADMIN_PASSWORD
+```
+
+Verifikasi admin tanpa menampilkan hash penuh:
+
+```powershell
+psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -c "SELECT employee_number, name, email, role, account_status, created_at, password_hash <> '' AS password_hash_filled FROM users WHERE role = 'ADMIN';"
+```
+
+Verifikasi idempotensi:
+
+```powershell
+psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -c "SELECT COUNT(*) AS admin_count FROM users WHERE role = 'ADMIN' AND lower(email) = lower('admin.local@example.test');"
+```
+
+Pastikan password tidak tersimpan plaintext:
+
+```powershell
+psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -c "SELECT password_hash = 'minimal-8-karakter' AS password_is_plaintext FROM users WHERE lower(email) = lower('admin.local@example.test');"
+```
