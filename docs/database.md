@@ -1,0 +1,153 @@
+# Database
+
+Dokumen ini mencatat mekanisme migration database lokal untuk R3 TI FaceAttend.
+
+## Mekanisme Migration
+
+Backend menggunakan file SQL migration murni di folder `backend/migrations`.
+Setiap migration memiliki pasangan file:
+
+- `*.up.sql` untuk menerapkan perubahan schema.
+- `*.down.sql` untuk rollback perubahan schema.
+
+Migration dijalankan dengan CLI `golang-migrate/migrate`. CLI ini dipilih
+karena mendukung PostgreSQL, mendukung `up` dan `down`, tidak membutuhkan ORM,
+dan tidak menjadi dependency kompilasi backend Golang. Backend tetap dapat
+dikompilasi walaupun CLI migration belum terpasang.
+
+## Instalasi CLI
+
+CLI migration tidak dianggap sudah tersedia di mesin lokal. Instal salah satu
+cara berikut.
+
+Menggunakan Go:
+
+```powershell
+go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
+
+Pastikan folder binary Go ada di `PATH`. Pada Windows biasanya:
+
+```powershell
+$env:PATH="$env:PATH;$env:USERPROFILE\go\bin"
+migrate -version
+```
+
+Alternatifnya, unduh binary resmi `migrate` untuk Windows dari rilis GitHub
+`golang-migrate/migrate`, lalu letakkan binary tersebut di folder yang masuk
+ke `PATH`.
+
+## Konfigurasi URL Database
+
+Jangan menulis password database ke dokumentasi atau commit repository.
+Bangun URL database dari environment variable di sesi PowerShell.
+
+```powershell
+$env:DB_HOST="localhost"
+$env:DB_PORT="5432"
+$env:DB_NAME="r3_ti_faceattend"
+$env:DB_USER="postgres"
+$env:DB_PASSWORD=""
+$env:DB_SSLMODE="disable"
+
+$DatabaseUrl = "postgres://$($env:DB_USER):$($env:DB_PASSWORD)@$($env:DB_HOST):$($env:DB_PORT)/$($env:DB_NAME)?sslmode=$($env:DB_SSLMODE)"
+```
+
+Jika user PostgreSQL lokal tidak memakai password, nilai `DB_PASSWORD` dapat
+dibiarkan kosong sesuai konfigurasi lokal.
+
+## Menjalankan Migration Up
+
+Dari folder `backend`:
+
+```powershell
+cd backend
+migrate -path migrations -database $DatabaseUrl up
+```
+
+## Menjalankan Migration Down
+
+Rollback satu versi terakhir:
+
+```powershell
+cd backend
+migrate -path migrations -database $DatabaseUrl down 1
+```
+
+Rollback semua versi:
+
+```powershell
+cd backend
+migrate -path migrations -database $DatabaseUrl down -all
+```
+
+## Melihat Versi Migration
+
+```powershell
+cd backend
+migrate -path migrations -database $DatabaseUrl version
+```
+
+Jika belum ada migration yang diterapkan, CLI dapat menampilkan status
+`Nil version`.
+
+## Verifikasi Melalui psql
+
+Pastikan tabel `users` sudah ada:
+
+```powershell
+psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -c "\dt users"
+```
+
+Lihat kolom, constraint, dan index:
+
+```powershell
+psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -c "\d users"
+```
+
+Setelah rollback, pastikan tabel sudah terhapus:
+
+```powershell
+psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -c "SELECT to_regclass('public.users');"
+```
+
+Nilai hasil `to_regclass` harus kosong atau `NULL` setelah migration down.
+
+## Verifikasi Melalui pgAdmin
+
+1. Buka koneksi PostgreSQL lokal di pgAdmin.
+2. Pilih database `r3_ti_faceattend`.
+3. Buka `Schemas` > `public` > `Tables`.
+4. Setelah migration up, pastikan tabel `users` muncul.
+5. Buka tab `Columns`, `Constraints`, dan `Indexes` untuk memeriksa schema.
+6. Setelah migration down, refresh node `Tables` dan pastikan `users` tidak ada.
+
+## Schema Awal users
+
+Migration pertama hanya membuat tabel `users`. Tidak ada akun contoh, password,
+seed admin, atau tabel lain.
+
+Kolom:
+
+- `id UUID PRIMARY KEY`
+- `employee_number VARCHAR(50) NOT NULL`
+- `name VARCHAR(150) NOT NULL`
+- `email VARCHAR(255) NOT NULL`
+- `password_hash TEXT NOT NULL`
+- `phone VARCHAR(30)`
+- `position VARCHAR(100)`
+- `role VARCHAR(10) NOT NULL`
+- `account_status VARCHAR(20) NOT NULL`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Constraint dan index:
+
+- `users_employee_number_unique` untuk memastikan nomor karyawan unik.
+- `users_email_lower_unique` untuk memastikan email unik tanpa membedakan
+  huruf besar dan kecil.
+- `users_role_allowed` membatasi role ke `ADMIN` atau `USER`.
+- `users_account_status_allowed` membatasi status akun ke `ACTIVE`,
+  `INACTIVE`, atau `SUSPENDED`.
+- Check constraint `*_not_empty` memastikan nilai wajib tidak hanya string
+  kosong atau spasi.
