@@ -156,6 +156,16 @@ func (r *fakeUserRepository) Create(ctx context.Context, u user.User) error {
 	return nil
 }
 
+func (r *fakeUserRepository) FindByID(ctx context.Context, id string) (user.User, error) {
+	for _, u := range r.users {
+		if u.ID == id {
+			return u, nil
+		}
+	}
+
+	return user.User{}, user.ErrNotFound
+}
+
 func (r *fakeUserRepository) FindByEmail(ctx context.Context, email string) (user.User, error) {
 	for _, u := range r.users {
 		if equalFold(u.Email, email) {

@@ -76,6 +76,11 @@ Variabel yang digunakan backend:
 - `DB_USER`
 - `DB_PASSWORD`
 - `DB_SSLMODE`
+- `AUTH_ACCESS_TOKEN_SECRET`
+- `AUTH_ACCESS_TOKEN_TTL_MINUTES`
+- `AUTH_REFRESH_TOKEN_TTL_HOURS`
+- `AUTH_TOKEN_ISSUER`
+- `AUTH_TOKEN_AUDIENCE`
 
 PowerShell dapat memuat nilai untuk sesi terminal seperti ini:
 
@@ -88,8 +93,16 @@ $env:DB_NAME="r3_ti_faceattend"
 $env:DB_USER="postgres"
 $env:DB_PASSWORD=
 $env:DB_SSLMODE="disable"
+$env:AUTH_ACCESS_TOKEN_SECRET="dKIkuNUj695Bwr04mMc8P7QTSvCpeaFxAHhXWEyqsJzRVgD1"
+$env:AUTH_ACCESS_TOKEN_TTL_MINUTES="15"
+$env:AUTH_REFRESH_TOKEN_TTL_HOURS="168"
+$env:AUTH_TOKEN_ISSUER="r3-ti-faceattend-api"
+$env:AUTH_TOKEN_AUDIENCE="r3-ti-faceattend-client"
 go run ./cmd/api
 ```
+
+`AUTH_ACCESS_TOKEN_SECRET` wajib diisi dan tidak boleh dicetak ke log. TTL
+access token dan refresh token harus bernilai positif.
 
 ### Seed Admin Lokal
 
@@ -140,6 +153,76 @@ Remove-Item Env:ADMIN_PASSWORD
 
 Jangan commit credential, password contoh nyata, atau file environment lokal
 yang berisi secret.
+
+### Autentikasi Backend
+
+Pastikan migration `000001` dan `000002` sudah dijalankan sebelum mencoba
+login. Admin development juga perlu dibuat dengan `go run ./cmd/seed-admin`.
+
+Jalankan API:
+
+```powershell
+cd backend
+go run ./cmd/api
+```
+
+Login:
+
+```powershell
+$LoginBody = @{
+  email = $env:ADMIN_EMAIL
+  password = $env:ADMIN_PASSWORD
+} | ConvertTo-Json
+
+$Login = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:8080/api/v1/auth/login" `
+  -ContentType "application/json" `
+  -Body $LoginBody
+```
+
+Gunakan access token sebagai Bearer token:
+
+```powershell
+$Headers = @{
+  Authorization = "Bearer $($Login.data.access_token)"
+}
+
+Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/v1/auth/me" -Headers $Headers
+Invoke-RestMethod -Method Get -Uri "http://localhost:8080/api/v1/admin/ping" -Headers $Headers
+```
+
+Refresh:
+
+```powershell
+$RefreshBody = @{
+  refresh_token = $Login.data.refresh_token
+} | ConvertTo-Json
+
+$Refresh = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:8080/api/v1/auth/refresh" `
+  -ContentType "application/json" `
+  -Body $RefreshBody
+```
+
+Logout:
+
+```powershell
+$LogoutBody = @{
+  refresh_token = $Refresh.data.refresh_token
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:8080/api/v1/auth/logout" `
+  -ContentType "application/json" `
+  -Body $LogoutBody
+```
+
+Jangan menulis token atau secret nyata ke dokumentasi, commit, atau log. Pada
+tahap Next.js berikutnya, Next.js akan menerima token dari Golang dan
+menyimpannya melalui server-side HttpOnly cookie.
 
 ### Health Check
 

@@ -10,9 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"r3-ti-faceattend/backend/internal/auth"
 	"r3-ti-faceattend/backend/internal/config"
 	"r3-ti-faceattend/backend/internal/database"
 	"r3-ti-faceattend/backend/internal/health"
+	"r3-ti-faceattend/backend/internal/security"
+	"r3-ti-faceattend/backend/internal/user"
 )
 
 func Run() {
@@ -23,6 +26,9 @@ func Run() {
 
 func run() error {
 	cfg := config.Load()
+	if err := cfg.Auth.Validate(); err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -71,6 +77,27 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 	healthHandler := health.NewHandler(cfg.AppEnv, db)
 	mux.Handle("/health", healthHandler)
 	mux.Handle("/api/v1/health", healthHandler)
+
+	client, ok := db.(*database.Client)
+	if ok && cfg.Auth.Validate() == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		pool, err := client.Pool(ctx)
+		if err == nil {
+			userRepo := user.NewPostgresRepository(pool)
+			sessionRepo := auth.NewPostgresSessionRepository(pool)
+			hasher := security.NewBcryptPasswordHasher()
+			authService := auth.NewService(userRepo, sessionRepo, hasher, cfg.Auth)
+			authHandler := auth.NewHandler(authService)
+
+			mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
+			mux.HandleFunc("/api/v1/auth/refresh", authHandler.Refresh)
+			mux.HandleFunc("/api/v1/auth/logout", authHandler.Logout)
+			mux.Handle("/api/v1/auth/me", auth.Authenticate(authService, http.HandlerFunc(authHandler.Me)))
+			mux.Handle("/api/v1/admin/ping", auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, http.HandlerFunc(auth.AdminPing))))
+		}
+	}
 
 	return mux
 }

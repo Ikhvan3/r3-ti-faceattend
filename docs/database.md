@@ -205,3 +205,29 @@ Pastikan password tidak tersimpan plaintext:
 ```powershell
 psql -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER -d $env:DB_NAME -c "SELECT password_hash = 'minimal-8-karakter' AS password_is_plaintext FROM users WHERE lower(email) = lower('admin.local@example.test');"
 ```
+
+## Migration auth_sessions
+
+Migration `000002_create_auth_sessions_table` menambahkan tabel
+`auth_sessions` untuk menyimpan session refresh token.
+
+Kolom:
+
+- `id UUID PRIMARY KEY`
+- `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+- `refresh_token_hash TEXT NOT NULL`
+- `expires_at TIMESTAMPTZ NOT NULL`
+- `revoked_at TIMESTAMPTZ NULL`
+- `last_used_at TIMESTAMPTZ NULL`
+- `created_ip INET NULL`
+- `user_agent TEXT NULL`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Index:
+
+- `auth_sessions_refresh_token_hash_unique` untuk lookup refresh token hash.
+- `auth_sessions_user_id_idx` untuk lookup session per user.
+- `auth_sessions_active_expires_at_idx` untuk session aktif yang belum revoked.
+
+Refresh token plaintext tidak disimpan di database. Backend hanya menyimpan
+hash SHA-256.

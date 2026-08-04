@@ -3,6 +3,7 @@ module r3-ti-faceattend/backend
 go 1.23.0
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/jackc/pgx/v5 v5.7.6
 	golang.org/x/crypto v0.37.0
 )

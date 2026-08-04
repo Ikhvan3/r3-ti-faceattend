@@ -46,6 +46,17 @@ func (r *PostgresRepository) Create(ctx context.Context, u User) error {
 	return nil
 }
 
+func (r *PostgresRepository) FindByID(ctx context.Context, id string) (User, error) {
+	const query = `
+		SELECT id, employee_number, name, email, password_hash, phone, position,
+			role, account_status, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	return r.findOne(ctx, query, strings.TrimSpace(id))
+}
+
 func (r *PostgresRepository) FindByEmail(ctx context.Context, email string) (User, error) {
 	const query = `
 		SELECT id, employee_number, name, email, password_hash, phone, position,
