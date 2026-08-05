@@ -39,8 +39,10 @@ export type GoErrorResponse = {
 
 export type ApiErrorCode =
   | "BAD_REQUEST"
+  | "CONFLICT"
   | "INVALID_CREDENTIALS"
   | "FORBIDDEN"
+  | "NOT_FOUND"
   | "UNAUTHORIZED"
   | "GO_API_UNAVAILABLE"
   | "INVALID_RESPONSE"

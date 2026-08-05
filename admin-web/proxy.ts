@@ -8,7 +8,10 @@ export function proxy(request: NextRequest) {
   const hasAccessToken = request.cookies.has(ACCESS_TOKEN_COOKIE);
   const hasRefreshToken = request.cookies.has(REFRESH_TOKEN_COOKIE);
 
-  if (pathname.startsWith("/dashboard") && !hasAccessToken && !hasRefreshToken) {
+  const isAdminPage =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/employees");
+
+  if (isAdminPage && !hasAccessToken && !hasRefreshToken) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -16,5 +19,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/employees/:path*"],
 };
