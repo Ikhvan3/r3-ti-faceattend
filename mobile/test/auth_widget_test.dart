@@ -5,16 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:r3_ti_faceattend/main.dart';
 import 'package:r3_ti_faceattend/src/auth/data/auth_repository.dart';
 
+import 'attendance_test_fakes.dart';
 import 'auth_test_fakes.dart';
 
 void main() {
   testWidgets('login form tampil', (tester) async {
     await tester.pumpWidget(
       R3TiFaceAttendApp(
-        repository: AuthRepository(
+        authRepository: AuthRepository(
           api: FakeAuthApi(),
           tokenStorage: FakeTokenStorage(),
         ),
+        attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
       ),
     );
     await tester.pumpAndSettle();
@@ -27,10 +29,11 @@ void main() {
   testWidgets('validasi field kosong', (tester) async {
     await tester.pumpWidget(
       R3TiFaceAttendApp(
-        repository: AuthRepository(
+        authRepository: AuthRepository(
           api: FakeAuthApi(),
           tokenStorage: FakeTokenStorage(),
         ),
+        attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
       ),
     );
     await tester.pumpAndSettle();
@@ -46,7 +49,11 @@ void main() {
     final api = FakeAuthApi()..loginCompleter = Completer<void>();
     await tester.pumpWidget(
       R3TiFaceAttendApp(
-        repository: AuthRepository(api: api, tokenStorage: FakeTokenStorage()),
+        authRepository: AuthRepository(
+          api: api,
+          tokenStorage: FakeTokenStorage(),
+        ),
+        attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
       ),
     );
     await tester.pumpAndSettle();
@@ -68,7 +75,11 @@ void main() {
     final api = FakeAuthApi()..loginError = invalidCredentialFailure;
     await tester.pumpWidget(
       R3TiFaceAttendApp(
-        repository: AuthRepository(api: api, tokenStorage: FakeTokenStorage()),
+        authRepository: AuthRepository(
+          api: api,
+          tokenStorage: FakeTokenStorage(),
+        ),
+        attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
       ),
     );
     await tester.pumpAndSettle();
@@ -92,7 +103,8 @@ void main() {
 
     await tester.pumpWidget(
       R3TiFaceAttendApp(
-        repository: AuthRepository(api: api, tokenStorage: storage),
+        authRepository: AuthRepository(api: api, tokenStorage: storage),
+        attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
       ),
     );
     await tester.pumpAndSettle();
@@ -105,10 +117,11 @@ void main() {
   testWidgets('password tidak tampil secara default', (tester) async {
     await tester.pumpWidget(
       R3TiFaceAttendApp(
-        repository: AuthRepository(
+        authRepository: AuthRepository(
           api: FakeAuthApi(),
           tokenStorage: FakeTokenStorage(),
         ),
+        attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
       ),
     );
     await tester.pumpAndSettle();
