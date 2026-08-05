@@ -1,6 +1,7 @@
 package user
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,6 +22,41 @@ func TestEmployeeHandlerListSuccess(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), `"items"`) {
 		t.Fatalf("response body = %s", response.Body.String())
+	}
+}
+
+func TestEmployeeHandlerListEmptyReturnsOK(t *testing.T) {
+	handler := newEmployeeTestHandler(newEmployeeFakeRepository())
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/employees?page=1&page_size=10", nil)
+	response := httptest.NewRecorder()
+
+	handler.Collection(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+
+	var payload struct {
+		Status string `json:"status"`
+		Data   struct {
+			Items      []EmployeeProfile `json:"items"`
+			TotalItems int               `json:"total_items"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Status != "ok" {
+		t.Fatalf("status payload = %q, want ok", payload.Status)
+	}
+	if payload.Data.Items == nil {
+		t.Fatal("items = nil, want empty array")
+	}
+	if len(payload.Data.Items) != 0 {
+		t.Fatalf("items length = %d, want 0", len(payload.Data.Items))
+	}
+	if payload.Data.TotalItems != 0 {
+		t.Fatalf("total_items = %d, want 0", payload.Data.TotalItems)
 	}
 }
 
