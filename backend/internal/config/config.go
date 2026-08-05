@@ -10,10 +10,11 @@ import (
 )
 
 type Config struct {
-	AppEnv   string
-	AppPort  string
-	Database DatabaseConfig
-	Auth     AuthConfig
+	AppEnv           string
+	AppPort          string
+	BusinessTimezone string
+	Database         DatabaseConfig
+	Auth             AuthConfig
 }
 
 type DatabaseConfig struct {
@@ -35,8 +36,9 @@ type AuthConfig struct {
 
 func Load() Config {
 	return Config{
-		AppEnv:  env("APP_ENV", "local"),
-		AppPort: env("APP_PORT", "8080"),
+		AppEnv:           env("APP_ENV", "local"),
+		AppPort:          env("APP_PORT", "8080"),
+		BusinessTimezone: env("BUSINESS_TIMEZONE", "Asia/Jakarta"),
 		Database: DatabaseConfig{
 			Host:     env("DB_HOST", "localhost"),
 			Port:     env("DB_PORT", "5432"),
@@ -53,6 +55,15 @@ func Load() Config {
 			TokenAudience:     env("AUTH_TOKEN_AUDIENCE", "r3-ti-faceattend-client"),
 		},
 	}
+}
+
+func (c Config) BusinessLocation() (*time.Location, error) {
+	location, err := time.LoadLocation(strings.TrimSpace(c.BusinessTimezone))
+	if err != nil {
+		return nil, fmt.Errorf("invalid BUSINESS_TIMEZONE: %w", err)
+	}
+
+	return location, nil
 }
 
 func (c AuthConfig) Validate() error {
