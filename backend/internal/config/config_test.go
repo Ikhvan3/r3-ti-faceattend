@@ -45,3 +45,33 @@ func TestAuthConfigValidateRejectsInvalidTTL(t *testing.T) {
 		t.Fatal("Validate() error = nil, want error")
 	}
 }
+
+func TestConfigBusinessLocation(t *testing.T) {
+	cfg := Config{BusinessTimezone: "Asia/Jakarta"}
+
+	location, err := cfg.BusinessLocation()
+	if err != nil {
+		t.Fatalf("BusinessLocation() error = %v", err)
+	}
+	if location.String() != "Asia/Jakarta" {
+		t.Fatalf("location = %s, want Asia/Jakarta", location)
+	}
+}
+
+func TestLoadDefaultsBusinessTimezoneToAsiaJakarta(t *testing.T) {
+	t.Setenv("BUSINESS_TIMEZONE", "")
+
+	cfg := Load()
+
+	if cfg.BusinessTimezone != "Asia/Jakarta" {
+		t.Fatalf("BusinessTimezone = %q, want Asia/Jakarta", cfg.BusinessTimezone)
+	}
+}
+
+func TestConfigBusinessLocationRejectsInvalidTimezone(t *testing.T) {
+	cfg := Config{BusinessTimezone: "Invalid/Timezone"}
+
+	if _, err := cfg.BusinessLocation(); err == nil {
+		t.Fatal("BusinessLocation() error = nil, want error")
+	}
+}

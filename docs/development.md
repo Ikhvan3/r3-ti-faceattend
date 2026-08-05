@@ -191,6 +191,7 @@ Variabel yang digunakan backend:
 
 - `APP_ENV`
 - `APP_PORT`
+- `BUSINESS_TIMEZONE`
 - `DB_HOST`
 - `DB_PORT`
 - `DB_NAME`
@@ -208,6 +209,7 @@ PowerShell dapat memuat nilai untuk sesi terminal seperti ini:
 ```powershell
 $env:APP_ENV="local"
 $env:APP_PORT="8080"
+$env:BUSINESS_TIMEZONE="Asia/Jakarta"
 $env:DB_HOST="localhost"
 $env:DB_PORT="5432"
 $env:DB_NAME="r3_ti_faceattend"
@@ -224,6 +226,8 @@ go run ./cmd/api
 
 `AUTH_ACCESS_TOKEN_SECRET` wajib diisi dan tidak boleh dicetak ke log. TTL
 access token dan refresh token harus bernilai positif.
+`BUSINESS_TIMEZONE` default `Asia/Jakarta` dan harus bernilai timezone IANA
+yang valid.
 
 ### Seed Admin Lokal
 
@@ -375,6 +379,48 @@ Alur uji manual dengan PostgreSQL lokal:
     HTTP `403`.
 
 Contoh PowerShell lengkap ada di `docs/api.md`.
+
+### Basic Attendance Backend
+
+Jalankan migration sampai `000003`, lalu siapkan pegawai dummy `USER` aktif.
+Seeder attendance development hanya boleh dijalankan dengan
+`APP_ENV=development`; command tidak menyimpan credential dan tidak berjalan
+otomatis di production.
+
+```powershell
+cd backend
+$env:APP_ENV="development"
+$env:BUSINESS_TIMEZONE="Asia/Jakarta"
+$env:DEV_ATTENDANCE_USER_EMAIL="pegawai.dummy.ti@example.test"
+$env:DEV_ATTENDANCE_SCHEDULE_NAME="Jadwal Kerja Dummy TI"
+$env:DEV_ATTENDANCE_START_TIME="08:00"
+$env:DEV_ATTENDANCE_END_TIME="17:00"
+$env:DEV_ATTENDANCE_GRACE_MINUTES="15"
+go run ./cmd/seed-attendance-dev
+```
+
+Endpoint USER:
+
+- `GET /api/v1/attendance/today`
+- `POST /api/v1/attendance/check-in`
+- `POST /api/v1/attendance/check-out`
+- `GET /api/v1/attendance/history?page=1&page_size=10`
+
+Alur uji manual dengan PostgreSQL lokal:
+
+1. Login sebagai pegawai dummy `USER` aktif melalui `/api/v1/auth/login`.
+2. Simpan access token ke header Bearer.
+3. `GET /api/v1/attendance/today` sebelum check-in harus menampilkan
+   `NOT_CHECKED_IN`.
+4. `POST /api/v1/attendance/check-in` dengan body kosong harus HTTP `201`.
+5. Check-in kedua harus HTTP `409`.
+6. `GET /api/v1/attendance/today` harus menampilkan `CHECKED_IN`.
+7. `POST /api/v1/attendance/check-out` dengan body kosong harus HTTP `200`.
+8. Check-out kedua harus HTTP `409`.
+9. `GET /api/v1/attendance/today` harus menampilkan `COMPLETED`.
+10. `GET /api/v1/attendance/history` harus menampilkan record user tersebut.
+11. Token `ADMIN` harus ditolak HTTP `403`.
+12. Token `USER` lain tidak dapat melihat record user tersebut.
 
 ### Health Check
 

@@ -246,3 +246,73 @@ Index:
 
 Refresh token plaintext tidak disimpan di database. Backend hanya menyimpan
 hash SHA-256.
+
+## Basic Attendance
+
+Migration `000003_create_basic_attendance_tables` menambahkan tabel minimum
+untuk absensi dasar tanpa GPS, geofence, kamera, face recognition, liveness,
+koreksi absensi, cuti, lembur, atau laporan.
+
+### work_schedules
+
+Kolom utama:
+
+- `id UUID PRIMARY KEY`
+- `name VARCHAR(100) NOT NULL`
+- `start_time TIME NOT NULL`
+- `end_time TIME NOT NULL`
+- `grace_minutes INTEGER NOT NULL DEFAULT 0`
+- `is_active BOOLEAN NOT NULL DEFAULT TRUE`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Constraint dan index:
+
+- `work_schedules_name_not_empty`
+- `work_schedules_grace_minutes_non_negative`
+- `work_schedules_name_unique`
+- `work_schedules_active_idx`
+
+### employee_schedule_assignments
+
+Kolom utama:
+
+- `id UUID PRIMARY KEY`
+- `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+- `schedule_id UUID NOT NULL REFERENCES work_schedules(id) ON DELETE RESTRICT`
+- `effective_from DATE NOT NULL`
+- `effective_to DATE NULL`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Constraint dan index:
+
+- `employee_schedule_assignments_date_range_valid`
+- `employee_schedule_assignments_user_schedule_from_unique`
+- `employee_schedule_assignments_user_effective_idx`
+- `employee_schedule_assignments_schedule_id_idx`
+
+### attendance_records
+
+Kolom utama:
+
+- `id UUID PRIMARY KEY`
+- `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+- `schedule_id UUID NOT NULL REFERENCES work_schedules(id) ON DELETE RESTRICT`
+- `attendance_date DATE NOT NULL`
+- `check_in_at TIMESTAMPTZ NOT NULL`
+- `check_out_at TIMESTAMPTZ NULL`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Constraint dan index:
+
+- `attendance_records_check_out_after_check_in`
+- `attendance_records_user_date_unique` mencegah lebih dari satu record untuk
+  user dan tanggal kerja yang sama.
+- `attendance_records_user_date_desc_idx`
+- `attendance_records_schedule_id_idx`
+
+Timestamp check-in dan check-out disimpan sebagai `TIMESTAMPTZ`. Tanggal
+absensi ditentukan backend menggunakan timezone bisnis, default
+`Asia/Jakarta`.

@@ -266,6 +266,56 @@ Invoke-RestMethod `
 
 Status yang diterima hanya `ACTIVE`, `INACTIVE`, dan `SUSPENDED`.
 
+## Basic Attendance User
+
+Endpoint attendance hanya untuk access token role `USER`. Backend selalu
+mengambil `user_id` dari token dan waktu dari server dengan timezone bisnis
+`Asia/Jakarta` secara default. Client tidak mengirim `user_id`, tanggal, atau
+waktu absensi.
+
+### Attendance Today
+
+Endpoint:
+
+- `GET /api/v1/attendance/today`
+
+Response `data` memuat `attendance_date`, `schedule`, `check_in_at`,
+`check_out_at`, `state`, `can_check_in`, dan `can_check_out`. Nilai `state`
+adalah `NOT_CHECKED_IN`, `CHECKED_IN`, atau `COMPLETED`.
+
+### Check-in
+
+Endpoint:
+
+- `POST /api/v1/attendance/check-in`
+
+Body harus kosong. Check-in berhasil mengembalikan HTTP `201`. Check-in ganda
+pada tanggal kerja yang sama mengembalikan HTTP `409`.
+
+### Check-out
+
+Endpoint:
+
+- `POST /api/v1/attendance/check-out`
+
+Body harus kosong. Check-out berhasil mengembalikan HTTP `200`. Check-out
+sebelum check-in atau check-out ganda mengembalikan HTTP `409`.
+
+### Attendance History
+
+Endpoint:
+
+- `GET /api/v1/attendance/history`
+
+Query parameter:
+
+- `page`, default `1`
+- `page_size`, default `10`, maksimum `100`
+
+Response `data` berisi `items`, `page`, `page_size`, `total_items`, dan
+`total_pages`. Riwayat hanya memuat data user dari token. Daftar kosong tetap
+HTTP `200` dengan `items: []`.
+
 ## Refresh Token
 
 Endpoint:

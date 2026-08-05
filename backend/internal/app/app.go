@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"r3-ti-faceattend/backend/internal/attendance"
 	"r3-ti-faceattend/backend/internal/auth"
 	"r3-ti-faceattend/backend/internal/config"
 	"r3-ti-faceattend/backend/internal/database"
@@ -27,6 +28,9 @@ func Run() {
 func run() error {
 	cfg := config.Load()
 	if err := cfg.Auth.Validate(); err != nil {
+		return err
+	}
+	if _, err := cfg.BusinessLocation(); err != nil {
 		return err
 	}
 
@@ -90,10 +94,20 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			hasher := security.NewBcryptPasswordHasher()
 			authService := auth.NewService(userRepo, sessionRepo, hasher, cfg.Auth)
 			authHandler := auth.NewHandler(authService)
+			businessLocation, err := cfg.BusinessLocation()
+			if err != nil {
+				return mux
+			}
 			employeeService := user.NewEmployeeService(userRepo, hasher)
 			employeeHandler := user.NewEmployeeHandler(employeeService)
+			attendanceRepo := attendance.NewPostgresRepository(pool)
+			attendanceService := attendance.NewService(attendanceRepo, businessLocation)
+			attendanceHandler := attendance.NewHandler(attendanceService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
+			}
+			userOnly := func(next http.Handler) http.Handler {
+				return auth.Authenticate(authService, auth.RequireRole(user.RoleUser, next))
 			}
 
 			mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
@@ -103,6 +117,10 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/admin/ping", adminOnly(http.HandlerFunc(auth.AdminPing)))
 			mux.Handle("/api/v1/admin/employees", adminOnly(http.HandlerFunc(employeeHandler.Collection)))
 			mux.Handle("/api/v1/admin/employees/", adminOnly(http.HandlerFunc(employeeHandler.Resource)))
+			mux.Handle("/api/v1/attendance/today", userOnly(http.HandlerFunc(attendanceHandler.Today)))
+			mux.Handle("/api/v1/attendance/check-in", userOnly(http.HandlerFunc(attendanceHandler.CheckIn)))
+			mux.Handle("/api/v1/attendance/check-out", userOnly(http.HandlerFunc(attendanceHandler.CheckOut)))
+			mux.Handle("/api/v1/attendance/history", userOnly(http.HandlerFunc(attendanceHandler.History)))
 		}
 	}
 
