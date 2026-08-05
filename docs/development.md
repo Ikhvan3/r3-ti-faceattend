@@ -260,6 +260,39 @@ Invoke-RestMethod `
 
 Jangan menulis token atau secret nyata ke dokumentasi, commit, atau log.
 
+### Employee Management Backend
+
+Employee management backend berjalan di bawah route admin Golang:
+
+- `GET /api/v1/admin/employees`
+- `POST /api/v1/admin/employees`
+- `GET /api/v1/admin/employees/{id}`
+- `PUT /api/v1/admin/employees/{id}`
+- `PATCH /api/v1/admin/employees/{id}/status`
+
+Semua route membutuhkan Bearer access token role `ADMIN`. Gunakan hanya data
+dummy development. Jangan memakai nama, email, nomor pegawai, nomor telepon,
+atau data personal PTPN yang sebenarnya pada database lokal, dokumentasi,
+commit, issue, screenshot, atau log.
+
+Alur uji manual dengan PostgreSQL lokal:
+
+1. Login sebagai admin development melalui `/api/v1/auth/login`.
+2. Simpan access token ke `$Headers`.
+3. Jalankan list employee dan pastikan response aman.
+4. Tambahkan pegawai dummy dengan email domain contoh seperti
+   `example.test`.
+5. Baca detail pegawai dari `id` response create.
+6. Update profil pegawai dummy.
+7. Ubah status ke `INACTIVE`.
+8. Coba create dengan email yang sama dan pastikan HTTP `409`.
+9. Coba create dengan nomor pegawai yang sama dan pastikan HTTP `409`.
+10. Pastikan response tidak mengandung `password_hash`.
+11. Login sebagai role `USER` dummy dan pastikan route admin mengembalikan
+    HTTP `403`.
+
+Contoh PowerShell lengkap ada di `docs/api.md`.
+
 ### Health Check
 
 Endpoint health tersedia di:

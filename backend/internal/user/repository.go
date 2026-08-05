@@ -6,6 +6,8 @@ import (
 )
 
 var ErrNotFound = errors.New("user not found")
+var ErrEmailConflict = errors.New("email is already used")
+var ErrEmployeeNumberConflict = errors.New("employee number is already used")
 
 type Repository interface {
 	Create(ctx context.Context, user User) error

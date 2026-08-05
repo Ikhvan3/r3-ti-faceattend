@@ -90,12 +90,19 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			hasher := security.NewBcryptPasswordHasher()
 			authService := auth.NewService(userRepo, sessionRepo, hasher, cfg.Auth)
 			authHandler := auth.NewHandler(authService)
+			employeeService := user.NewEmployeeService(userRepo, hasher)
+			employeeHandler := user.NewEmployeeHandler(employeeService)
+			adminOnly := func(next http.Handler) http.Handler {
+				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
+			}
 
 			mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
 			mux.HandleFunc("/api/v1/auth/refresh", authHandler.Refresh)
 			mux.HandleFunc("/api/v1/auth/logout", authHandler.Logout)
 			mux.Handle("/api/v1/auth/me", auth.Authenticate(authService, http.HandlerFunc(authHandler.Me)))
-			mux.Handle("/api/v1/admin/ping", auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, http.HandlerFunc(auth.AdminPing))))
+			mux.Handle("/api/v1/admin/ping", adminOnly(http.HandlerFunc(auth.AdminPing)))
+			mux.Handle("/api/v1/admin/employees", adminOnly(http.HandlerFunc(employeeHandler.Collection)))
+			mux.Handle("/api/v1/admin/employees/", adminOnly(http.HandlerFunc(employeeHandler.Resource)))
 		}
 	}
 
