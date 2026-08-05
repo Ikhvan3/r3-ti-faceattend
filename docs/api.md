@@ -129,6 +129,25 @@ ada.
 
 ## Catatan Next.js
 
-Pada tahap Next.js berikutnya, Next.js akan menerima token dari backend Golang
-dan menyimpannya melalui server-side HttpOnly cookie. Tahap ini belum
-mengimplementasikan Next.js.
+Admin web menggunakan Next.js Route Handler sebagai BFF untuk autentikasi.
+Browser admin memanggil endpoint Next.js berikut:
+
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+
+Next.js kemudian memanggil Golang REST API di bawah `/api/v1`. Token dari
+Golang tidak dikembalikan ke browser sebagai JSON; Next.js menyimpannya dalam
+HttpOnly cookie:
+
+- `r3_access_token`
+- `r3_refresh_token`
+
+Access token dipakai Next.js server untuk memanggil `/api/v1/auth/me`. Jika
+access token expired dan refresh token tersedia, Next.js melakukan refresh
+server-side satu kali melalui `/api/v1/auth/refresh`, menyimpan token baru, dan
+mengulang validasi profil. Authorization final tetap dilakukan oleh Golang dan
+pemeriksaan role `ADMIN` di server Next.js.
+
+Jangan menyimpan token di `localStorage` atau `sessionStorage`.

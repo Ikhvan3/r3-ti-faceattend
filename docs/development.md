@@ -35,6 +35,44 @@ npm run dev
 
 Konfigurasi awal dicatat di `admin-web/.env.example`.
 
+Environment lokal admin web:
+
+```powershell
+cd admin-web
+$env:APP_ENV="local"
+$env:GO_API_BASE_URL="http://127.0.0.1:8080/api/v1"
+npm run dev
+```
+
+Gunakan `http://localhost:3000/login` untuk login admin. Browser admin
+memanggil Next.js Route Handler di `/api/auth/*`; browser tidak memanggil
+endpoint autentikasi Golang secara langsung.
+
+Next.js menyimpan access token dan refresh token dalam HttpOnly cookie:
+
+- `r3_access_token`
+- `r3_refresh_token`
+
+Pada `APP_ENV=local`, cookie memakai `secure=false` agar bisa berjalan melalui
+HTTP lokal. Pada `APP_ENV=production`, cookie memakai `secure=true`.
+
+Token tidak boleh disimpan di `localStorage` atau `sessionStorage`.
+
+Alur uji login/logout manual:
+
+1. Jalankan Golang API dengan konfigurasi auth.
+2. Pastikan migration dan admin seed sudah tersedia.
+3. Jalankan admin web dengan `GO_API_BASE_URL`.
+4. Buka `http://localhost:3000/login`.
+5. Login dengan akun admin seed.
+6. Pastikan diarahkan ke `/dashboard`.
+7. Pastikan profil admin tampil.
+8. Pastikan `localStorage` dan `sessionStorage` tidak berisi token.
+9. Pastikan cookie `r3_access_token` dan `r3_refresh_token` berstatus HttpOnly.
+10. Klik logout dan pastikan kembali ke `/login`.
+11. Coba password salah dan pastikan pesan error tetap generik.
+12. Matikan Golang API dan pastikan UI menampilkan error aman.
+
 ## Backend
 
 ```powershell
@@ -220,9 +258,7 @@ Invoke-RestMethod `
   -Body $LogoutBody
 ```
 
-Jangan menulis token atau secret nyata ke dokumentasi, commit, atau log. Pada
-tahap Next.js berikutnya, Next.js akan menerima token dari Golang dan
-menyimpannya melalui server-side HttpOnly cookie.
+Jangan menulis token atau secret nyata ke dokumentasi, commit, atau log.
 
 ### Health Check
 
