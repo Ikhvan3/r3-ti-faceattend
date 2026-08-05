@@ -48,6 +48,24 @@ flutter run --dart-define=API_BASE_URL=http://<IP-LAPTOP>:8080/api/v1
 Cleartext HTTP hanya diizinkan untuk build debug Android melalui debug network
 security config. Build utama tidak menambahkan izin kamera atau lokasi.
 
+## Absensi Dasar
+
+Setelah login sebagai pegawai `USER` aktif, beranda memanggil endpoint
+attendance backend:
+
+- `GET /api/v1/attendance/today`
+- `POST /api/v1/attendance/check-in`
+- `POST /api/v1/attendance/check-out`
+- `GET /api/v1/attendance/history`
+
+Check-in dan check-out memakai waktu server. Aplikasi tidak mengirim `user_id`,
+tanggal absensi, waktu check-in, waktu check-out, timezone, atau role. Jika
+access token kedaluwarsa, aplikasi melakukan refresh token satu kali dan
+mengulang request attendance satu kali.
+
+GPS, geofence, kamera, verifikasi wajah, liveness, koreksi absensi, cuti,
+lembur, dan laporan admin belum tersedia pada tahap ini.
+
 ## Verifikasi
 
 ```powershell
