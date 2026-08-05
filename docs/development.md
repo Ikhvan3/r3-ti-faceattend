@@ -23,6 +23,35 @@ flutter test
 Konfigurasi awal dicatat di `mobile/.env.example`. Pada tahap berikutnya nilai
 runtime dapat diberikan melalui `--dart-define`.
 
+Autentikasi mobile menggunakan Golang API langsung. Default lokal untuk Android
+emulator:
+
+```powershell
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api/v1
+```
+
+Untuk perangkat fisik melalui `adb reverse`:
+
+```powershell
+adb reverse tcp:8080 tcp:8080
+flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8080/api/v1
+```
+
+Untuk perangkat fisik melalui Wi-Fi, ganti host dengan IP laptop lokal.
+Gunakan akun dummy `USER` aktif dari endpoint admin employee. Jangan menyimpan
+credential, token, atau header `Authorization` pada log atau dokumentasi.
+
+Alur uji manual mobile:
+
+1. Jalankan Golang API dan pastikan `/api/v1/health` `ok`.
+2. Pastikan ada pegawai dummy dengan `role = USER` dan `account_status = ACTIVE`.
+3. Jalankan aplikasi dengan `API_BASE_URL` yang sesuai device.
+4. Login sebagai pegawai dummy aktif.
+5. Tutup dan buka ulang aplikasi untuk memastikan restore session.
+6. Paksa access token expired lalu pastikan refresh berjalan satu kali.
+7. Logout dan pastikan kembali ke halaman login.
+8. Coba akun admin dan akun nonaktif untuk memastikan akses ditolak.
+
 ## Admin Web
 
 ```powershell
@@ -363,3 +392,19 @@ Invoke-RestMethod http://localhost:8080/api/v1/health
 
 Jika API hidup tetapi database belum tersambung, response tetap JSON konsisten
 dengan status `degraded` dan HTTP status `503`.
+
+## Menjalankan Flutter pada HP Android melalui USB
+
+Pastikan backend berjalan pada port 8080.
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+
+& $adb devices
+& $adb reverse tcp:8080 tcp:8080
+& $adb reverse --list
+
+flutter run -d DEVICE_ID `
+  --dart-define="API_BASE_URL=http://127.0.0.1:8080/api/v1"
+
+
