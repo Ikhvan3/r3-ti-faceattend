@@ -38,6 +38,27 @@ Next.js dalam HttpOnly cookie server-side. Token tidak boleh disimpan di
 `localStorage` atau `sessionStorage`, dan Next.js tidak boleh mengakses
 PostgreSQL secara langsung.
 
+Untuk modul manajemen pegawai admin:
+
+```text
+Server Component /employees
+-> server-only Golang API client
+-> Golang REST API /api/v1/admin/employees
+-> PostgreSQL
+```
+
+Create, update, dan perubahan status dari browser memakai BFF:
+
+```text
+Browser admin
+-> Next.js Route Handler /api/admin/employees*
+-> Golang REST API /api/v1/admin/employees*
+-> PostgreSQL
+```
+
+Browser tidak menerima access token atau refresh token sebagai JSON. Token
+tetap berada pada HttpOnly cookie dan hanya dibaca oleh server Next.js.
+
 ## Prinsip Teknis
 
 - Server time menjadi sumber waktu absensi yang otoritatif.

@@ -86,6 +86,24 @@ func TestEmployeeServiceListPagination(t *testing.T) {
 	}
 }
 
+func TestEmployeeServiceListEmptyReturnsEmptyItems(t *testing.T) {
+	service := NewEmployeeService(newEmployeeFakeRepository(), employeeFakeHasher{})
+
+	result, err := service.List(context.Background(), EmployeeListFilter{Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if result.Items == nil {
+		t.Fatal("Items = nil, want empty slice")
+	}
+	if len(result.Items) != 0 {
+		t.Fatalf("Items length = %d, want 0", len(result.Items))
+	}
+	if result.TotalItems != 0 || result.TotalPages != 0 {
+		t.Fatalf("pagination = %+v, want zero totals", result)
+	}
+}
+
 func TestEmployeeServiceUpdateSuccessAndRejectsAdmin(t *testing.T) {
 	repo := newEmployeeFakeRepository()
 	employee := employeeUser("00000000-0000-4000-8000-000000000001", "EMP-001", "old.ti@example.test")

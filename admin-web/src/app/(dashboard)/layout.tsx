@@ -28,6 +28,12 @@ export default async function DashboardLayout({
             >
               Dashboard
             </Link>
+            <Link
+              className="mt-2 block rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              href="/employees"
+            >
+              Pegawai TI
+            </Link>
           </nav>
         </aside>
 

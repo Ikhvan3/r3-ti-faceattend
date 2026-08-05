@@ -73,6 +73,60 @@ Alur uji login/logout manual:
 11. Coba password salah dan pastikan pesan error tetap generik.
 12. Matikan Golang API dan pastikan UI menampilkan error aman.
 
+### Admin Web Employee Management
+
+Route halaman admin employee:
+
+- `GET /employees`
+- `GET /employees/new`
+- `GET /employees/{id}`
+- `GET /employees/{id}/edit`
+
+BFF endpoint yang dipanggil browser admin:
+
+- `POST /api/admin/employees`
+- `PUT /api/admin/employees/{id}`
+- `PATCH /api/admin/employees/{id}/status`
+
+Server Components membaca list dan detail pegawai langsung dari Golang melalui
+server-only API client dengan `GO_API_BASE_URL`. Browser tidak memanggil Golang
+secara langsung dan tidak menerima token sebagai JSON.
+
+Jalankan backend dan admin web:
+
+```powershell
+# Terminal 1
+cd backend
+go run ./cmd/api
+
+# Terminal 2
+cd admin-web
+$env:APP_ENV="local"
+$env:GO_API_BASE_URL="http://127.0.0.1:8080/api/v1"
+npm run dev
+```
+
+Alur uji CRUD pegawai admin:
+
+1. Login admin di `http://localhost:3000/login`.
+2. Buka `http://localhost:3000/employees`.
+3. Pastikan daftar pegawai tampil atau empty state aman.
+4. Gunakan search dan filter status; pastikan query muncul di URL.
+5. Tambahkan pegawai dummy dari `/employees/new`.
+6. Coba email duplikat dan pastikan pesan conflict tampil.
+7. Coba nomor pegawai duplikat dan pastikan pesan conflict tampil.
+8. Buka detail pegawai.
+9. Edit data pegawai.
+10. Ubah status ke `INACTIVE`, `SUSPENDED`, lalu `ACTIVE` sesuai kebutuhan uji.
+11. Pastikan `password_hash` tidak terlihat di UI atau response BFF.
+12. Pastikan `localStorage` dan `sessionStorage` tidak menyimpan token.
+13. Hapus/ubah cookie session untuk memastikan session invalid diarahkan ke
+    login atau menampilkan pesan aman.
+
+Gunakan hanya data dummy development. Jangan memakai nama, email, nomor
+pegawai, nomor telepon, atau data personal PTPN yang sebenarnya pada database
+lokal, dokumentasi, commit, issue, screenshot, atau log.
+
 ## Backend
 
 ```powershell
