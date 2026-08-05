@@ -50,6 +50,13 @@ database, menentukan tanggal kerja dengan timezone bisnis, lalu menyimpan
 check-in/check-out sebagai `TIMESTAMPTZ`. Client tidak dipercaya untuk
 mengirim user, role, tanggal, atau waktu.
 
+Flutter mobile menampilkan status attendance dari endpoint tersebut melalui
+repository dan `ChangeNotifier` berbasis Provider. Access token dan refresh
+token tetap berasal dari sistem autentikasi mobile yang sama; tidak ada storage
+token kedua. Jika endpoint attendance mengembalikan `401`, mobile melakukan
+refresh token satu kali, menyimpan token rotasi, lalu mengulang request satu
+kali.
+
 Untuk admin web, browser tidak memanggil endpoint autentikasi Golang secara
 langsung. Alur autentikasi admin adalah:
 

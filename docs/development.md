@@ -52,6 +52,33 @@ Alur uji manual mobile:
 7. Logout dan pastikan kembali ke halaman login.
 8. Coba akun admin dan akun nonaktif untuk memastikan akses ditolak.
 
+Alur uji manual mobile attendance pada HP Android melalui USB:
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb reverse tcp:8080 tcp:8080
+
+cd mobile
+flutter run -d DEVICE_ID `
+  --dart-define="API_BASE_URL=http://127.0.0.1:8080/api/v1"
+```
+
+Pastikan backend aktif, migration attendance sudah dijalankan, dan pegawai
+dummy `USER` aktif sudah memiliki assignment jadwal. Setelah login, beranda
+menampilkan status attendance hari ini, tombol check-in/check-out sesuai state,
+dan halaman riwayat memakai pagination backend. GPS, geofence, kamera,
+verifikasi wajah, liveness, koreksi absensi, cuti, lembur, dan laporan admin
+belum tersedia pada tahap ini.
+
+Verifikasi otomatis mobile:
+
+```powershell
+cd mobile
+dart format .
+flutter analyze
+flutter test
+```
+
 ## Admin Web
 
 ```powershell
