@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../attendance/data/attendance_repository.dart';
+import '../../attendance/presentation/attendance_card.dart';
+import '../../attendance/presentation/attendance_controller.dart';
 import '../domain/user_profile.dart';
 import 'auth_controller.dart';
 import 'profile_page.dart';
@@ -36,47 +39,79 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            'Halo, ${user.name}',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Text('Akun ${_statusLabel(user.accountStatus)}'),
-          const SizedBox(height: 20),
-          _InfoCard(label: 'Nomor Pegawai', value: user.employeeNumber),
-          _InfoCard(label: 'Jabatan', value: user.position ?? '-'),
-          _InfoCard(label: 'Email', value: user.email),
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Modul Absensi',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Check-in, check-out, lokasi, dan verifikasi wajah akan dibuat pada tahap berikutnya.',
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: null,
-                    child: const Text('Check-in belum tersedia'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+      body: ChangeNotifierProvider<AttendanceController>(
+        create: (context) =>
+            AttendanceController(context.read<AttendanceRepository>())
+              ..initialize(),
+        child: _AttendanceHomeBody(user: user),
       ),
+    );
+  }
+}
+
+class _AttendanceHomeBody extends StatefulWidget {
+  const _AttendanceHomeBody({required this.user});
+
+  final UserProfile user;
+
+  @override
+  State<_AttendanceHomeBody> createState() => _AttendanceHomeBodyState();
+}
+
+class _AttendanceHomeBodyState extends State<_AttendanceHomeBody>
+    with WidgetsBindingObserver {
+  bool _logoutScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<AttendanceController>().refreshToday();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final attendance = context.watch<AttendanceController>();
+    if (attendance.sessionExpired && !_logoutScheduled) {
+      _logoutScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        context.read<AuthController>().logout();
+      });
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          'Halo, ${widget.user.name}',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text('Akun ${_statusLabel(widget.user.accountStatus)}'),
+        const SizedBox(height: 20),
+        _InfoCard(label: 'Nomor Pegawai', value: widget.user.employeeNumber),
+        _InfoCard(label: 'Jabatan', value: widget.user.position ?? '-'),
+        _InfoCard(label: 'Email', value: widget.user.email),
+        const SizedBox(height: 20),
+        const AttendanceCard(),
+      ],
     );
   }
 }

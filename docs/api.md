@@ -316,6 +316,12 @@ Response `data` berisi `items`, `page`, `page_size`, `total_items`, dan
 `total_pages`. Riwayat hanya memuat data user dari token. Daftar kosong tetap
 HTTP `200` dengan `items: []`.
 
+Flutter mobile memanggil endpoint attendance di atas langsung ke Golang API
+dengan `API_BASE_URL`. Jika access token kedaluwarsa, mobile melakukan refresh
+token satu kali melalui endpoint auth yang sudah ada, menyimpan token rotasi,
+dan mengulang request attendance satu kali. Mobile tidak mengirim `user_id`,
+tanggal, waktu, timezone, atau role pada request attendance.
+
 ## Refresh Token
 
 Endpoint:
