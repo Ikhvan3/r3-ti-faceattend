@@ -23,6 +23,19 @@ Mobile dan admin web akan berkomunikasi dengan backend melalui REST endpoint
 di bawah `/api/v1`. Backend akan menjadi pemilik autentikasi, otorisasi,
 aturan absensi, validasi geofence, laporan, dan audit log.
 
+Untuk mobile pegawai:
+
+```text
+Flutter mobile
+-> Golang REST API /api/v1/auth/*
+-> PostgreSQL
+```
+
+Mobile menyimpan access token dan refresh token melalui secure storage.
+Aplikasi mobile hanya mengizinkan profil backend dengan `role = USER` dan
+`account_status = ACTIVE`. Akun admin tidak boleh dipakai untuk masuk aplikasi
+pegawai.
+
 Untuk admin web, browser tidak memanggil endpoint autentikasi Golang secara
 langsung. Alur autentikasi admin adalah:
 

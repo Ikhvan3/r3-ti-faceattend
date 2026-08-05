@@ -64,6 +64,14 @@ Invoke-RestMethod `
   -Headers $Headers
 ```
 
+Catatan mobile:
+
+- Flutter mobile memakai `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`,
+  `POST /api/v1/auth/logout`, dan `GET /api/v1/auth/me`.
+- Mobile hanya menerima user `USER` dengan status `ACTIVE`.
+- Akun `ADMIN`, `INACTIVE`, atau `SUSPENDED` harus ditolak oleh aplikasi
+  mobile meskipun response backend valid.
+
 ## Admin Ping
 
 Endpoint pengujian role ADMIN:
