@@ -12,16 +12,30 @@ Informasi PTPN I Regional 3 Semarang.
 
 ## Batas Tahap Ini
 
-Tahap ini hanya menyiapkan struktur awal repository. Belum ada login, database
-schema, CRUD pegawai, absensi, geolocation, face recognition, dashboard admin,
-atau fitur bisnis lain.
+Prototype saat ini mencakup autentikasi admin, backend Employee Management API,
+dan antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi.
+Modul absensi, geolocation, jadwal, lokasi kerja, face recognition, liveness,
+laporan, dan dashboard statistik belum masuk scope tahap ini.
 
 ## Komponen Lokal
 
 - Flutter untuk aplikasi Android.
 - Next.js dengan TypeScript, Tailwind CSS, ESLint, App Router, dan `src/`.
-- Golang module minimal tanpa framework HTTP dan tanpa dependency database.
-- PostgreSQL akan digunakan pada tahap berikutnya melalui backend Golang.
+- Golang REST API tanpa framework HTTP dan tanpa ORM.
+- PostgreSQL hanya diakses oleh backend Golang.
+
+## Navigasi Admin Web
+
+Setelah login admin, modul yang tersedia:
+
+- `/dashboard`
+- `/employees`
+- `/employees/new`
+- `/employees/{id}`
+- `/employees/{id}/edit`
+
+Gunakan hanya data dummy pada development. Jangan memakai data pegawai PTPN
+yang sebenarnya.
 
 ## Dokumentasi
 
