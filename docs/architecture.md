@@ -36,6 +36,20 @@ Aplikasi mobile hanya mengizinkan profil backend dengan `role = USER` dan
 `account_status = ACTIVE`. Akun admin tidak boleh dipakai untuk masuk aplikasi
 pegawai.
 
+Untuk basic attendance pegawai:
+
+```text
+Flutter mobile
+-> Golang REST API /api/v1/attendance/*
+-> PostgreSQL
+```
+
+Endpoint attendance dilindungi `Authenticate` dan `RequireRole(USER)`.
+Backend membaca identitas pegawai dari access token, mengecek status akun di
+database, menentukan tanggal kerja dengan timezone bisnis, lalu menyimpan
+check-in/check-out sebagai `TIMESTAMPTZ`. Client tidak dipercaya untuk
+mengirim user, role, tanggal, atau waktu.
+
 Untuk admin web, browser tidak memanggil endpoint autentikasi Golang secara
 langsung. Alur autentikasi admin adalah:
 
@@ -75,6 +89,8 @@ tetap berada pada HttpOnly cookie dan hanya dibaca oleh server Next.js.
 ## Prinsip Teknis
 
 - Server time menjadi sumber waktu absensi yang otoritatif.
+- Timezone bisnis default adalah `Asia/Jakarta` dan divalidasi saat aplikasi
+  dimulai.
 - Secret tidak boleh disimpan di repository.
 - Perubahan schema database harus melalui migration.
 - Error internal tidak boleh dikirim mentah ke client.
