@@ -81,6 +81,183 @@ Invoke-RestMethod `
 
 Endpoint ini membutuhkan access token valid dan role `ADMIN`.
 
+## Employee Management Admin
+
+Endpoint employee hanya untuk pegawai Divisi Teknologi Informasi pada scope
+development saat ini. Data employee disimpan sebagai user dengan `role = USER`.
+Endpoint ini membutuhkan access token valid dan role `ADMIN`; akun `ADMIN`
+tidak dapat dibaca atau diubah melalui endpoint employee.
+
+Response employee tidak pernah memuat `password_hash`.
+
+### Daftar Pegawai
+
+Endpoint:
+
+- `GET /api/v1/admin/employees`
+
+Query parameter:
+
+- `page`, default `1`
+- `page_size`, default `10`, maksimum `100`
+- `search`, opsional, mencari `employee_number`, `name`, `email`, dan
+  `position`
+- `status`, opsional: `ACTIVE`, `INACTIVE`, atau `SUSPENDED`
+
+Response `data`:
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "page_size": 10,
+  "total_items": 0,
+  "total_pages": 0
+}
+```
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod `
+  -Method Get `
+  -Uri "http://localhost:8080/api/v1/admin/employees?page=1&page_size=10&search=dummy" `
+  -Headers $Headers
+```
+
+### Tambah Pegawai
+
+Endpoint:
+
+- `POST /api/v1/admin/employees`
+
+Request:
+
+```json
+{
+  "employee_number": "EMP-DUMMY-001",
+  "name": "Pegawai Dummy TI",
+  "email": "pegawai.dummy.ti@example.test",
+  "initial_password": "password-dummy",
+  "phone": null,
+  "position": "Staf TI"
+}
+```
+
+`role` selalu dipaksa menjadi `USER`, `account_status` awal selalu `ACTIVE`,
+dan `initial_password` di-hash sebelum disimpan.
+
+PowerShell:
+
+```powershell
+$EmployeeBody = @{
+  employee_number = "EMP-DUMMY-001"
+  name = "Pegawai Dummy TI"
+  email = "pegawai.dummy.ti@example.test"
+  initial_password = "password-dummy"
+  phone = $null
+  position = "Staf TI"
+} | ConvertTo-Json
+
+$Employee = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:8080/api/v1/admin/employees" `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body $EmployeeBody
+```
+
+Duplicate `email` atau `employee_number` mengembalikan HTTP `409`.
+
+### Detail Pegawai
+
+Endpoint:
+
+- `GET /api/v1/admin/employees/{id}`
+
+PowerShell:
+
+```powershell
+Invoke-RestMethod `
+  -Method Get `
+  -Uri "http://localhost:8080/api/v1/admin/employees/$($Employee.data.id)" `
+  -Headers $Headers
+```
+
+UUID tidak valid mengembalikan HTTP `400`. Pegawai tidak ditemukan
+mengembalikan HTTP `404`.
+
+### Update Pegawai
+
+Endpoint:
+
+- `PUT /api/v1/admin/employees/{id}`
+
+Request:
+
+```json
+{
+  "employee_number": "EMP-DUMMY-001",
+  "name": "Pegawai Dummy TI Updated",
+  "email": "pegawai.dummy.updated@example.test",
+  "phone": "081234567890",
+  "position": "Staf TI"
+}
+```
+
+Field yang dapat diubah hanya `employee_number`, `name`, `email`, `phone`, dan
+`position`.
+
+PowerShell:
+
+```powershell
+$UpdateBody = @{
+  employee_number = "EMP-DUMMY-001"
+  name = "Pegawai Dummy TI Updated"
+  email = "pegawai.dummy.updated@example.test"
+  phone = "081234567890"
+  position = "Staf TI"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Put `
+  -Uri "http://localhost:8080/api/v1/admin/employees/$($Employee.data.id)" `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body $UpdateBody
+```
+
+### Update Status Pegawai
+
+Endpoint:
+
+- `PATCH /api/v1/admin/employees/{id}/status`
+
+Request:
+
+```json
+{
+  "account_status": "INACTIVE"
+}
+```
+
+PowerShell:
+
+```powershell
+$StatusBody = @{
+  account_status = "INACTIVE"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Patch `
+  -Uri "http://localhost:8080/api/v1/admin/employees/$($Employee.data.id)/status" `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body $StatusBody
+```
+
+Status yang diterima hanya `ACTIVE`, `INACTIVE`, dan `SUSPENDED`.
+
 ## Refresh Token
 
 Endpoint:

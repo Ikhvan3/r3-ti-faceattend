@@ -152,6 +152,21 @@ Constraint dan index:
 - Check constraint `*_not_empty` memastikan nilai wajib tidak hanya string
   kosong atau spasi.
 
+## Employee Management
+
+Tahap employee management tidak menambahkan tabel baru. Pegawai Divisi
+Teknologi Informasi direpresentasikan oleh baris pada tabel `users` dengan
+`role = 'USER'`.
+
+Tidak ada tabel `division`, `office`, `schedule`, lokasi, absensi, geolocation,
+face recognition, liveness, payroll, atau laporan pada tahap ini. Scope divisi
+Teknologi Informasi tetap bersifat konseptual sesuai batasan prototype.
+
+Endpoint employee admin hanya melakukan operasi pada baris `users` dengan
+`role = 'USER'`, sehingga akun `ADMIN` tidak dapat dibaca atau diubah melalui
+endpoint tersebut. Password tetap disimpan sebagai hash pada `password_hash`
+dan tidak boleh dimunculkan dalam response API.
+
 ## Seed Admin Lokal
 
 Seed admin dijalankan setelah migration `users` sudah diterapkan. Command
