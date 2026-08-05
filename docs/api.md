@@ -327,4 +327,16 @@ server-side satu kali melalui `/api/v1/auth/refresh`, menyimpan token baru, dan
 mengulang validasi profil. Authorization final tetap dilakukan oleh Golang dan
 pemeriksaan role `ADMIN` di server Next.js.
 
+Untuk employee management, Server Components admin web membaca list dan detail
+langsung dari Golang REST API menggunakan token dari HttpOnly cookie server-side.
+Mutasi dari browser tetap melewati Next.js Route Handler/BFF:
+
+- `POST /api/admin/employees`
+- `PUT /api/admin/employees/{id}`
+- `PATCH /api/admin/employees/{id}/status`
+
+Route Handler tersebut meneruskan request ke Golang endpoint admin employee,
+mendukung refresh token satu kali bila access token kedaluwarsa, dan tidak
+mengembalikan token ke browser.
+
 Jangan menyimpan token di `localStorage` atau `sessionStorage`.
