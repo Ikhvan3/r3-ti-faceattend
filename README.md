@@ -13,9 +13,10 @@ Informasi PTPN I Regional 3 Semarang.
 ## Batas Tahap Ini
 
 Prototype saat ini mencakup autentikasi admin, backend Employee Management API,
-dan antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi.
-Modul absensi, geolocation, jadwal, lokasi kerja, face recognition, liveness,
-laporan, dan dashboard statistik belum masuk scope tahap ini.
+antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi, dan
+autentikasi mobile untuk pegawai `USER` aktif. Modul absensi, geolocation,
+jadwal, lokasi kerja, face recognition, liveness, laporan, dan dashboard
+statistik belum masuk scope tahap ini.
 
 ## Komponen Lokal
 
@@ -23,6 +24,16 @@ laporan, dan dashboard statistik belum masuk scope tahap ini.
 - Next.js dengan TypeScript, Tailwind CSS, ESLint, App Router, dan `src/`.
 - Golang REST API tanpa framework HTTP dan tanpa ORM.
 - PostgreSQL hanya diakses oleh backend Golang.
+
+## Mobile
+
+Aplikasi mobile memakai endpoint backend `/api/v1/auth/*` untuk login,
+restore session, refresh token, dan logout. Base URL default untuk Android
+emulator adalah `http://10.0.2.2:8080/api/v1` dan dapat diubah melalui
+`--dart-define=API_BASE_URL=...`.
+
+Mobile hanya menerima user dengan `role = USER` dan `account_status = ACTIVE`.
+Token disimpan di secure storage, bukan di storage biasa atau log.
 
 ## Navigasi Admin Web
 
