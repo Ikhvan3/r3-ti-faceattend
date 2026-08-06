@@ -1,143 +1,148 @@
-import { isRecord } from "../employee/utils";
 import type { Employee } from "../employee/types";
+import { isRecord } from "../employee/utils";
+import type { AssignmentStatus } from "../schedule/types";
 import {
-  type AssignmentStatus,
-  type ScheduleAssignment,
-  type ScheduleAssignmentListQuery,
-  type ScheduleAssignmentListResponse,
-  type ScheduleStatus,
-  type WorkSchedule,
-  type WorkScheduleListQuery,
-  type WorkScheduleListResponse,
+  assignmentStatusLabel,
+  deriveAssignmentStatus,
+  formatDateOnly,
+  isAssignmentStatus,
+  isDateOnly,
+} from "../schedule/utils";
+import type {
+  LocationAssignment,
+  LocationAssignmentListQuery,
+  LocationAssignmentListResponse,
+  OfficeLocation,
+  OfficeLocationListQuery,
+  OfficeLocationListResponse,
+  OfficeLocationStatus,
 } from "./types";
 
-export const SCHEDULE_STATUSES: ScheduleStatus[] = ["ACTIVE", "INACTIVE"];
-export const ASSIGNMENT_STATUSES: AssignmentStatus[] = [
+export const OFFICE_LOCATION_STATUSES: OfficeLocationStatus[] = [
+  "ACTIVE",
+  "INACTIVE",
+];
+export const LOCATION_ASSIGNMENT_STATUSES: AssignmentStatus[] = [
   "CURRENT",
   "UPCOMING",
   "ENDED",
 ];
-export const DEFAULT_SCHEDULE_PAGE = 1;
-export const DEFAULT_SCHEDULE_PAGE_SIZE = 10;
-export const MAX_SCHEDULE_PAGE_SIZE = 100;
+export const DEFAULT_LOCATION_PAGE = 1;
+export const DEFAULT_LOCATION_PAGE_SIZE = 10;
+export const MAX_LOCATION_PAGE_SIZE = 100;
 
-export type ParsedWorkScheduleSearchParams = {
+export type ParsedOfficeLocationSearchParams = {
   page: number;
   page_size: number;
   search: string;
-  status: ScheduleStatus | "";
+  status: OfficeLocationStatus | "";
 };
 
-export type ParsedAssignmentSearchParams = {
+export type ParsedLocationAssignmentSearchParams = {
   page: number;
   page_size: number;
   search: string;
   user_id: string;
-  schedule_id: string;
+  office_location_id: string;
   status: AssignmentStatus | "";
 };
 
-export function parseWorkScheduleSearchParams(
+export function parseOfficeLocationSearchParams(
   searchParams: Record<string, string | string[] | undefined>,
-): ParsedWorkScheduleSearchParams {
+): ParsedOfficeLocationSearchParams {
   const status = firstParam(searchParams.status).trim().toUpperCase();
-
   return {
     page: parsePositiveInt(
       firstParam(searchParams.page),
-      DEFAULT_SCHEDULE_PAGE,
+      DEFAULT_LOCATION_PAGE,
       Number.MAX_SAFE_INTEGER,
     ),
     page_size: parsePositiveInt(
       firstParam(searchParams.page_size),
-      DEFAULT_SCHEDULE_PAGE_SIZE,
-      MAX_SCHEDULE_PAGE_SIZE,
+      DEFAULT_LOCATION_PAGE_SIZE,
+      MAX_LOCATION_PAGE_SIZE,
     ),
     search: firstParam(searchParams.search).trim(),
-    status: isScheduleStatus(status) ? status : "",
+    status: isOfficeLocationStatus(status) ? status : "",
   };
 }
 
-export function parseAssignmentSearchParams(
+export function parseLocationAssignmentSearchParams(
   searchParams: Record<string, string | string[] | undefined>,
-): ParsedAssignmentSearchParams {
+): ParsedLocationAssignmentSearchParams {
   const status = firstParam(searchParams.status).trim().toUpperCase();
-
   return {
     page: parsePositiveInt(
       firstParam(searchParams.page),
-      DEFAULT_SCHEDULE_PAGE,
+      DEFAULT_LOCATION_PAGE,
       Number.MAX_SAFE_INTEGER,
     ),
     page_size: parsePositiveInt(
       firstParam(searchParams.page_size),
-      DEFAULT_SCHEDULE_PAGE_SIZE,
-      MAX_SCHEDULE_PAGE_SIZE,
+      DEFAULT_LOCATION_PAGE_SIZE,
+      MAX_LOCATION_PAGE_SIZE,
     ),
     search: firstParam(searchParams.search).trim(),
     user_id: firstParam(searchParams.user_id).trim(),
-    schedule_id: firstParam(searchParams.schedule_id).trim(),
+    office_location_id: firstParam(searchParams.office_location_id).trim(),
     status: isAssignmentStatus(status) ? status : "",
   };
 }
 
-export function buildWorkScheduleQueryParams(
-  query: WorkScheduleListQuery,
+export function buildOfficeLocationQueryParams(
+  query: OfficeLocationListQuery,
 ): string {
   const params = new URLSearchParams();
   params.set(
     "page",
-    String(clampPositiveInt(query.page, DEFAULT_SCHEDULE_PAGE)),
+    String(clampPositiveInt(query.page, DEFAULT_LOCATION_PAGE)),
   );
   params.set(
     "page_size",
     String(
       clampPositiveInt(
         query.page_size,
-        DEFAULT_SCHEDULE_PAGE_SIZE,
-        MAX_SCHEDULE_PAGE_SIZE,
+        DEFAULT_LOCATION_PAGE_SIZE,
+        MAX_LOCATION_PAGE_SIZE,
       ),
     ),
   );
-  const search = query.search?.trim();
-  if (search) {
-    params.set("search", search);
-  }
-  if (query.status && isScheduleStatus(query.status)) {
+  setTrimmed(params, "search", query.search);
+  if (query.status && isOfficeLocationStatus(query.status)) {
     params.set("status", query.status);
   }
   return params.toString();
 }
 
-export function buildAssignmentQueryParams(
-  query: ScheduleAssignmentListQuery,
+export function buildLocationAssignmentQueryParams(
+  query: LocationAssignmentListQuery,
 ): string {
   const params = new URLSearchParams();
   params.set(
     "page",
-    String(clampPositiveInt(query.page, DEFAULT_SCHEDULE_PAGE)),
+    String(clampPositiveInt(query.page, DEFAULT_LOCATION_PAGE)),
   );
   params.set(
     "page_size",
     String(
       clampPositiveInt(
         query.page_size,
-        DEFAULT_SCHEDULE_PAGE_SIZE,
-        MAX_SCHEDULE_PAGE_SIZE,
+        DEFAULT_LOCATION_PAGE_SIZE,
+        MAX_LOCATION_PAGE_SIZE,
       ),
     ),
   );
   setTrimmed(params, "search", query.search);
   setTrimmed(params, "user_id", query.user_id);
-  setTrimmed(params, "schedule_id", query.schedule_id);
+  setTrimmed(params, "office_location_id", query.office_location_id);
   if (query.status && isAssignmentStatus(query.status)) {
     params.set("status", query.status);
   }
   return params.toString();
 }
 
-export function workScheduleListHref(
-  query: ParsedWorkScheduleSearchParams,
+export function officeLocationListHref(
+  query: ParsedOfficeLocationSearchParams,
   page: number,
 ): string {
   const params = new URLSearchParams();
@@ -147,11 +152,11 @@ export function workScheduleListHref(
   if (query.status) {
     params.set("status", query.status);
   }
-  return `/work-schedules?${params.toString()}`;
+  return `/office-locations?${params.toString()}`;
 }
 
-export function assignmentListHref(
-  query: ParsedAssignmentSearchParams,
+export function locationAssignmentListHref(
+  query: ParsedLocationAssignmentSearchParams,
   page: number,
 ): string {
   const params = new URLSearchParams();
@@ -159,41 +164,34 @@ export function assignmentListHref(
   params.set("page_size", String(query.page_size));
   setTrimmed(params, "search", query.search);
   setTrimmed(params, "user_id", query.user_id);
-  setTrimmed(params, "schedule_id", query.schedule_id);
+  setTrimmed(params, "office_location_id", query.office_location_id);
   if (query.status) {
     params.set("status", query.status);
   }
-  return `/schedule-assignments?${params.toString()}`;
+  return `/location-assignments?${params.toString()}`;
 }
 
-export function isScheduleStatus(value: unknown): value is ScheduleStatus {
+export function isOfficeLocationStatus(
+  value: unknown,
+): value is OfficeLocationStatus {
   return value === "ACTIVE" || value === "INACTIVE";
 }
 
-export function isAssignmentStatus(value: unknown): value is AssignmentStatus {
-  return value === "CURRENT" || value === "UPCOMING" || value === "ENDED";
-}
-
-export function scheduleStatusFromActive(isActive: boolean): ScheduleStatus {
+export function officeLocationStatusFromActive(
+  isActive: boolean,
+): OfficeLocationStatus {
   return isActive ? "ACTIVE" : "INACTIVE";
 }
 
-export function scheduleStatusLabel(status: ScheduleStatus): string {
+export function officeLocationStatusLabel(
+  status: OfficeLocationStatus,
+): string {
   return status === "ACTIVE" ? "Aktif" : "Nonaktif";
 }
 
-export function assignmentStatusLabel(status: AssignmentStatus): string {
-  switch (status) {
-    case "CURRENT":
-      return "Berjalan";
-    case "UPCOMING":
-      return "Akan Datang";
-    case "ENDED":
-      return "Berakhir";
-  }
-}
-
-export function badgeClass(status: ScheduleStatus | AssignmentStatus): string {
+export function locationBadgeClass(
+  status: OfficeLocationStatus | AssignmentStatus,
+): string {
   switch (status) {
     case "ACTIVE":
     case "CURRENT":
@@ -206,55 +204,64 @@ export function badgeClass(status: ScheduleStatus | AssignmentStatus): string {
   }
 }
 
-export function formatScheduleTime(value: string): string {
-  return /^\d{2}:\d{2}/.test(value) ? value.slice(0, 5).replace(":", ".") : "-";
-}
-
-export function isDateOnly(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && parseDateOnly(value) !== null;
-}
-
-export function formatDateOnly(value: string | null): string {
-  if (value === null) {
-    return "Tanpa batas";
+export function locationStatusLabel(
+  status: OfficeLocationStatus | AssignmentStatus,
+): string {
+  if (status === "ACTIVE" || status === "INACTIVE") {
+    return officeLocationStatusLabel(status);
   }
-  const parsed = parseDateOnly(value);
-  if (!parsed) {
+  return assignmentStatusLabel(status);
+}
+
+export function parseLatitude(value: string): number | null {
+  return parseBoundedNumber(value, -90, 90);
+}
+
+export function parseLongitude(value: string): number | null {
+  return parseBoundedNumber(value, -180, 180);
+}
+
+export function parseRadiusMeters(value: string): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    return null;
+  }
+  if (parsed < 10 || parsed > 2000) {
+    return null;
+  }
+  return parsed;
+}
+
+export function formatCoordinate(value: number): string {
+  if (!Number.isFinite(value)) {
     return "-";
   }
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(parsed.year, parsed.month - 1, parsed.day));
+  return new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits: 6,
+  }).format(value);
 }
 
-export function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+export function formatRadius(value: number): string {
+  return `${value} meter`;
 }
 
-export function safeScheduleApiMessage(
+export { formatDateOnly, isDateOnly };
+
+export function safeLocationApiMessage(
   status: number,
   fallback: string,
 ): string {
   if (status === 400) {
-    return "Request tidak valid. Periksa kembali data jadwal.";
+    return "Request tidak valid. Periksa kembali data lokasi.";
   }
   if (status === 401) {
     return "Session tidak valid. Silakan login ulang.";
   }
   if (status === 403) {
-    return "Akses admin diperlukan untuk mengelola jadwal.";
+    return "Akses admin diperlukan untuk mengelola lokasi.";
   }
   if (status === 404) {
-    return "Data jadwal tidak ditemukan.";
+    return "Data lokasi tidak ditemukan.";
   }
   if (status === 409) {
     return fallback;
@@ -265,27 +272,31 @@ export function safeScheduleApiMessage(
   return "Terjadi kesalahan. Coba lagi nanti.";
 }
 
-export function isWorkSchedule(value: unknown): value is WorkSchedule {
+export function isOfficeLocation(value: unknown): value is OfficeLocation {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
-    typeof value.start_time === "string" &&
-    typeof value.end_time === "string" &&
-    typeof value.grace_minutes === "number" &&
+    (typeof value.address === "string" || value.address === null) &&
+    typeof value.latitude === "number" &&
+    Number.isFinite(value.latitude) &&
+    typeof value.longitude === "number" &&
+    Number.isFinite(value.longitude) &&
+    typeof value.radius_meters === "number" &&
+    Number.isInteger(value.radius_meters) &&
     typeof value.is_active === "boolean" &&
     typeof value.created_at === "string" &&
     typeof value.updated_at === "string"
   );
 }
 
-export function isWorkScheduleListResponse(
+export function isOfficeLocationListResponse(
   value: unknown,
-): value is WorkScheduleListResponse {
+): value is OfficeLocationListResponse {
   return (
     isRecord(value) &&
     Array.isArray(value.items) &&
-    value.items.every(isWorkSchedule) &&
+    value.items.every(isOfficeLocation) &&
     typeof value.page === "number" &&
     typeof value.page_size === "number" &&
     typeof value.total_items === "number" &&
@@ -293,10 +304,14 @@ export function isWorkScheduleListResponse(
   );
 }
 
-export function normalizeAssignment(
+export function normalizeLocationAssignment(
   value: unknown,
-): ScheduleAssignment | null {
-  if (!isRecord(value) || !isEmployeeLike(value.user) || !isWorkSchedule(value.schedule)) {
+): LocationAssignment | null {
+  if (
+    !isRecord(value) ||
+    !isEmployeeLike(value.user) ||
+    !isOfficeLocation(value.office_location)
+  ) {
     return null;
   }
   if (
@@ -316,7 +331,7 @@ export function normalizeAssignment(
   return {
     id: value.id,
     user: value.user,
-    schedule: value.schedule,
+    office_location: value.office_location,
     effective_from: value.effective_from,
     effective_to: value.effective_to,
     status,
@@ -325,31 +340,21 @@ export function normalizeAssignment(
   };
 }
 
-export function isScheduleAssignmentListResponse(
+export function isLocationAssignment(
   value: unknown,
-): value is ScheduleAssignmentListResponse {
-  if (!isRecord(value) || !Array.isArray(value.items)) {
-    return false;
-  }
-  const items = value.items.map(normalizeAssignment);
-  return (
-    items.every((item): item is ScheduleAssignment => item !== null) &&
-    typeof value.page === "number" &&
-    typeof value.page_size === "number" &&
-    typeof value.total_items === "number" &&
-    typeof value.total_pages === "number"
-  );
+): value is LocationAssignment {
+  return normalizeLocationAssignment(value) !== null;
 }
 
-export function normalizeAssignmentListResponse(
+export function normalizeLocationAssignmentListResponse(
   value: unknown,
-): ScheduleAssignmentListResponse | null {
+): LocationAssignmentListResponse | null {
   if (!isRecord(value) || !Array.isArray(value.items)) {
     return null;
   }
-  const items = value.items.map(normalizeAssignment);
+  const items = value.items.map(normalizeLocationAssignment);
   if (
-    !items.every((item): item is ScheduleAssignment => item !== null) ||
+    !items.every((item): item is LocationAssignment => item !== null) ||
     typeof value.page !== "number" ||
     typeof value.page_size !== "number" ||
     typeof value.total_items !== "number" ||
@@ -366,18 +371,22 @@ export function normalizeAssignmentListResponse(
   };
 }
 
-export function deriveAssignmentStatus(
-  effectiveFrom: string,
-  effectiveTo: string | null,
-): AssignmentStatus {
-  const today = localDateKey(new Date());
-  if (effectiveFrom > today) {
-    return "UPCOMING";
+export function isLocationAssignmentListResponse(
+  value: unknown,
+): value is LocationAssignmentListResponse {
+  return normalizeLocationAssignmentListResponse(value) !== null;
+}
+
+function parseBoundedNumber(
+  value: string,
+  min: number,
+  max: number,
+): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    return null;
   }
-  if (effectiveTo !== null && effectiveTo < today) {
-    return "ENDED";
-  }
-  return "CURRENT";
+  return parsed;
 }
 
 function isEmployeeLike(value: unknown): value is Employee {
@@ -396,32 +405,6 @@ function isEmployeeLike(value: unknown): value is Employee {
   );
 }
 
-function parseDateOnly(value: string): { year: number; month: number; day: number } | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) {
-    return null;
-  }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(year, month - 1, day);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-  return { year, month, day };
-}
-
-function localDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
 }
@@ -434,7 +417,11 @@ function parsePositiveInt(value: string, fallback: number, max: number): number 
   return Math.min(parsed, max);
 }
 
-function clampPositiveInt(value: number | undefined, fallback: number, max = Number.MAX_SAFE_INTEGER): number {
+function clampPositiveInt(
+  value: number | undefined,
+  fallback: number,
+  max = Number.MAX_SAFE_INTEGER,
+): number {
   if (value === undefined || !Number.isInteger(value) || value < 1) {
     return fallback;
   }

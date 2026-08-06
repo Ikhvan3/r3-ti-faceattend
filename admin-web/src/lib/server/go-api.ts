@@ -24,6 +24,27 @@ import {
   isRecord,
 } from "@/lib/employee/utils";
 import type {
+  CreateLocationAssignmentRequest,
+  CreateOfficeLocationRequest,
+  EndLocationAssignmentRequest,
+  LocationAssignment,
+  LocationAssignmentListQuery,
+  LocationAssignmentListResponse,
+  OfficeLocation,
+  OfficeLocationListQuery,
+  OfficeLocationListResponse,
+  UpdateOfficeLocationRequest,
+  UpdateOfficeLocationStatusRequest,
+} from "@/lib/location/types";
+import {
+  buildLocationAssignmentQueryParams,
+  buildOfficeLocationQueryParams,
+  isOfficeLocation,
+  isOfficeLocationListResponse,
+  normalizeLocationAssignment,
+  normalizeLocationAssignmentListResponse,
+} from "@/lib/location/utils";
+import type {
   CreateScheduleAssignmentRequest,
   CreateWorkScheduleRequest,
   EndScheduleAssignmentRequest,
@@ -377,6 +398,187 @@ export async function getEmployeeOptions(): Promise<Employee[]> {
   return result.items.filter((employee) => employee.role === "USER");
 }
 
+export async function getOfficeLocations(
+  query: OfficeLocationListQuery,
+): Promise<OfficeLocationListResponse> {
+  const queryString = buildOfficeLocationQueryParams(query);
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<OfficeLocationListResponse>(
+      `/admin/office-locations?${queryString}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    ),
+  );
+
+  if (!isOfficeLocationListResponse(response)) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons daftar lokasi kantor tidak sesuai.",
+      502,
+    );
+  }
+
+  return response;
+}
+
+export async function getActiveOfficeLocations(): Promise<OfficeLocation[]> {
+  const result = await getOfficeLocations({
+    page: 1,
+    page_size: 100,
+    status: "ACTIVE",
+  });
+  return result.items;
+}
+
+export async function getOfficeLocationByID(
+  id: string,
+): Promise<OfficeLocation> {
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<OfficeLocation>(
+      `/admin/office-locations/${encodeURIComponent(id)}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    ),
+  );
+
+  if (!isOfficeLocation(response)) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons lokasi kantor tidak sesuai.",
+      502,
+    );
+  }
+
+  return response;
+}
+
+export async function createOfficeLocationWithSession(
+  request: CreateOfficeLocationRequest,
+): Promise<OfficeLocation> {
+  return mutateOfficeLocationWithRefresh((accessToken) =>
+    goFetch<OfficeLocation>("/admin/office-locations", {
+      method: "POST",
+      body: request,
+      accessToken,
+    }),
+  );
+}
+
+export async function updateOfficeLocationWithSession(
+  id: string,
+  request: UpdateOfficeLocationRequest,
+): Promise<OfficeLocation> {
+  return mutateOfficeLocationWithRefresh((accessToken) =>
+    goFetch<OfficeLocation>(
+      `/admin/office-locations/${encodeURIComponent(id)}`,
+      {
+        method: "PUT",
+        body: request,
+        accessToken,
+      },
+    ),
+  );
+}
+
+export async function updateOfficeLocationStatusWithSession(
+  id: string,
+  request: UpdateOfficeLocationStatusRequest,
+): Promise<OfficeLocation> {
+  return mutateOfficeLocationWithRefresh((accessToken) =>
+    goFetch<OfficeLocation>(
+      `/admin/office-locations/${encodeURIComponent(id)}/status`,
+      {
+        method: "PATCH",
+        body: request,
+        accessToken,
+      },
+    ),
+  );
+}
+
+export async function getLocationAssignments(
+  query: LocationAssignmentListQuery,
+): Promise<LocationAssignmentListResponse> {
+  const queryString = buildLocationAssignmentQueryParams(query);
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<LocationAssignmentListResponse>(
+      `/admin/location-assignments?${queryString}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    ),
+  );
+
+  const normalized = normalizeLocationAssignmentListResponse(response);
+  if (!normalized) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons daftar penugasan lokasi tidak sesuai.",
+      502,
+    );
+  }
+
+  return normalized;
+}
+
+export async function getLocationAssignmentByID(
+  id: string,
+): Promise<LocationAssignment> {
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<LocationAssignment>(
+      `/admin/location-assignments/${encodeURIComponent(id)}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    ),
+  );
+
+  const normalized = normalizeLocationAssignment(response);
+  if (!normalized) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons penugasan lokasi tidak sesuai.",
+      502,
+    );
+  }
+
+  return normalized;
+}
+
+export async function createLocationAssignmentWithSession(
+  request: CreateLocationAssignmentRequest,
+): Promise<LocationAssignment> {
+  return mutateLocationAssignmentWithRefresh((accessToken) =>
+    goFetch<LocationAssignment>("/admin/location-assignments", {
+      method: "POST",
+      body: request,
+      accessToken,
+    }),
+  );
+}
+
+export async function endLocationAssignmentWithSession(
+  id: string,
+  request: EndLocationAssignmentRequest,
+): Promise<LocationAssignment> {
+  return mutateLocationAssignmentWithRefresh((accessToken) =>
+    goFetch<LocationAssignment>(
+      `/admin/location-assignments/${encodeURIComponent(id)}/end`,
+      {
+        method: "PATCH",
+        body: request,
+        accessToken,
+      },
+    ),
+  );
+}
+
 export async function readAccessTokenWithRefresh(): Promise<string | null> {
   const accessToken = await readAccessToken();
   if (accessToken) {
@@ -481,6 +683,35 @@ async function mutateAssignmentWithRefresh(
     throw new SafeApiError(
       "INVALID_RESPONSE",
       "Respons penugasan jadwal tidak sesuai.",
+      502,
+    );
+  }
+  return normalized;
+}
+
+async function mutateOfficeLocationWithRefresh(
+  operation: (accessToken: string) => Promise<OfficeLocation>,
+): Promise<OfficeLocation> {
+  const office = await mutateWithRefresh(operation);
+  if (!isOfficeLocation(office)) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons lokasi kantor tidak sesuai.",
+      502,
+    );
+  }
+  return office;
+}
+
+async function mutateLocationAssignmentWithRefresh(
+  operation: (accessToken: string) => Promise<LocationAssignment>,
+): Promise<LocationAssignment> {
+  const assignment = await mutateWithRefresh(operation);
+  const normalized = normalizeLocationAssignment(assignment);
+  if (!normalized) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons penugasan lokasi tidak sesuai.",
       502,
     );
   }
@@ -719,6 +950,12 @@ function isEmployeeListResponse(value: unknown): value is EmployeeListResponse {
 
 function safeConflictMessage(message: string): string {
   const normalized = message.toLowerCase();
+  if (normalized.includes("assignment lokasi")) {
+    return "Periode penugasan lokasi bertumpang tindih dengan penugasan lain.";
+  }
+  if (normalized.includes("lokasi kantor") || normalized.includes("lokasi")) {
+    return "Lokasi tidak dapat dinonaktifkan karena masih ditugaskan kepada pegawai.";
+  }
   if (normalized.includes("bertumpang") || normalized.includes("overlap")) {
     return "Periode penugasan jadwal bertumpang tindih dengan penugasan lain.";
   }
