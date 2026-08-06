@@ -1,6 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { DashboardNav } from "@/app/(dashboard)/_components/dashboard-nav";
 import { logoutAction } from "@/lib/server/logout-action";
 import { requireAdmin } from "@/lib/server/session";
 
@@ -21,20 +21,7 @@ export default async function DashboardLayout({
             </p>
             <h2 className="mt-2 text-lg font-semibold">Admin TI</h2>
           </div>
-          <nav className="mt-8">
-            <Link
-              className="block rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800"
-              href="/dashboard"
-            >
-              Dashboard
-            </Link>
-            <Link
-              className="mt-2 block rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              href="/employees"
-            >
-              Pegawai TI
-            </Link>
-          </nav>
+          <DashboardNav />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
