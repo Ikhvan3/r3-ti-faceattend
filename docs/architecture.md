@@ -128,9 +128,21 @@ tetapi mobile tetap memakai Golang API langsung sebagai role `USER`.
 Untuk fondasi geofence lokasi kantor:
 
 ```text
-Admin atau client admin lokal
+Server Component /office-locations dan /location-assignments
+-> server-only Golang API client
 -> Golang REST API /api/v1/admin/office-locations
 -> Golang REST API /api/v1/admin/location-assignments
+-> PostgreSQL
+```
+
+Mutasi dari browser admin memakai BFF Next.js:
+
+```text
+Browser admin
+-> Next.js Route Handler /api/admin/office-locations*
+-> Next.js Route Handler /api/admin/location-assignments*
+-> Golang REST API /api/v1/admin/office-locations*
+-> Golang REST API /api/v1/admin/location-assignments*
 -> PostgreSQL
 ```
 
