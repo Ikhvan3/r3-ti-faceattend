@@ -346,3 +346,73 @@ Contoh diperbolehkan:
 Migration down hanya menghapus constraint overlap. Data assignment tidak
 dihapus. Jangan memakai data pegawai asli untuk verifikasi migration atau
 contoh query.
+
+## Office Location dan Assignment Lokasi
+
+Migration `000005_create_office_locations_and_assignments` menambahkan fondasi
+lokasi kantor untuk geofence. Tahap ini belum mewajibkan koordinat pada
+check-in/check-out.
+
+### office_locations
+
+Kolom utama:
+
+- `id UUID PRIMARY KEY`
+- `name VARCHAR(150) NOT NULL`
+- `address TEXT NULL`
+- `latitude DOUBLE PRECISION NOT NULL`
+- `longitude DOUBLE PRECISION NOT NULL`
+- `radius_meters INTEGER NOT NULL`
+- `is_active BOOLEAN NOT NULL DEFAULT TRUE`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Constraint:
+
+- `office_locations_name_not_empty`
+- `office_locations_latitude_valid` membatasi latitude `-90` sampai `90`.
+- `office_locations_longitude_valid` membatasi longitude `-180` sampai `180`.
+- `office_locations_radius_valid` membatasi radius `10` sampai `2000` meter.
+
+### employee_location_assignments
+
+Kolom utama:
+
+- `id UUID PRIMARY KEY`
+- `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+- `office_location_id UUID NOT NULL REFERENCES office_locations(id) ON DELETE RESTRICT`
+- `effective_from DATE NOT NULL`
+- `effective_to DATE NULL`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Semantik periode:
+
+- `effective_from` inklusif.
+- `effective_to` inklusif.
+- `effective_to NULL` berarti tanpa batas akhir.
+
+Constraint overlap `employee_location_assignments_user_period_no_overlap`
+memakai `btree_gist` dan `daterange(..., '[]')` untuk mencegah satu user
+memiliki assignment lokasi yang periodenya bertumpang tindih, termasuk pada
+request concurrent.
+
+### Bukti Lokasi Attendance
+
+Migration yang sama menambahkan kolom nullable pada `attendance_records`:
+
+- `check_in_location_id`
+- `check_in_latitude`
+- `check_in_longitude`
+- `check_in_accuracy_meters`
+- `check_in_distance_meters`
+- `check_out_location_id`
+- `check_out_latitude`
+- `check_out_longitude`
+- `check_out_accuracy_meters`
+- `check_out_distance_meters`
+
+Semua kolom bukti lokasi nullable agar record lama tetap valid dan mobile lama
+tetap dapat check-in/check-out tanpa koordinat. Kolom lokasi memiliki FK ke
+`office_locations`; kolom koordinat, accuracy, dan distance memiliki check
+constraint rentang nilai dasar.

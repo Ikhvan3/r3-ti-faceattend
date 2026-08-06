@@ -125,6 +125,35 @@ tetap berada dalam HttpOnly cookie yang hanya dibaca server Next.js. Assignment
 yang dibuat admin menjadi sumber jadwal aktif bagi endpoint mobile attendance,
 tetapi mobile tetap memakai Golang API langsung sebagai role `USER`.
 
+Untuk fondasi geofence lokasi kantor:
+
+```text
+Admin atau client admin lokal
+-> Golang REST API /api/v1/admin/office-locations
+-> Golang REST API /api/v1/admin/location-assignments
+-> PostgreSQL
+```
+
+Endpoint admin lokasi dilindungi `Authenticate` dan `RequireRole(ADMIN)`.
+Backend memvalidasi koordinat, radius geofence, status aktif lokasi, role
+`USER` untuk assignment, tanggal bisnis berbasis `BUSINESS_TIMEZONE`, dan
+konflik periode assignment lokasi.
+
+Pegawai mobile dapat membaca kebutuhan lokasi hari ini melalui:
+
+```text
+Flutter mobile
+-> Golang REST API /api/v1/attendance/location-requirement
+-> PostgreSQL
+```
+
+Endpoint tersebut dilindungi role `USER`, mengambil `user_id` dari token, dan
+tidak menerima `user_id` dari client. Tahap ini belum melakukan enforcement
+geofence pada check-in/check-out sehingga mobile attendance lama tetap
+kompatibel. Kalkulator geofence backend memakai Haversine tanpa API maps
+eksternal; jarak dari client tidak dipercaya. GPS spoofing tetap menjadi risiko
+yang akan perlu mitigasi pada tahap enforcement berikutnya.
+
 ## Prinsip Teknis
 
 - Server time menjadi sumber waktu absensi yang otoritatif.
