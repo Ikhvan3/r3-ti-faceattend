@@ -15,6 +15,7 @@ import (
 	"r3-ti-faceattend/backend/internal/config"
 	"r3-ti-faceattend/backend/internal/database"
 	"r3-ti-faceattend/backend/internal/health"
+	officelocation "r3-ti-faceattend/backend/internal/location"
 	"r3-ti-faceattend/backend/internal/security"
 	"r3-ti-faceattend/backend/internal/user"
 )
@@ -106,6 +107,9 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			adminScheduleRepo := attendance.NewAdminPostgresRepository(pool)
 			adminScheduleService := attendance.NewAdminScheduleService(adminScheduleRepo, businessLocation)
 			adminScheduleHandler := attendance.NewAdminScheduleHandler(adminScheduleService)
+			locationRepo := officelocation.NewPostgresRepository(pool)
+			locationService := officelocation.NewService(locationRepo, locationRepo, businessLocation)
+			locationHandler := officelocation.NewHandler(locationService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
 			}
@@ -124,7 +128,12 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/admin/work-schedules/", adminOnly(http.HandlerFunc(adminScheduleHandler.WorkScheduleResource)))
 			mux.Handle("/api/v1/admin/schedule-assignments", adminOnly(http.HandlerFunc(adminScheduleHandler.AssignmentCollection)))
 			mux.Handle("/api/v1/admin/schedule-assignments/", adminOnly(http.HandlerFunc(adminScheduleHandler.AssignmentResource)))
+			mux.Handle("/api/v1/admin/office-locations", adminOnly(http.HandlerFunc(locationHandler.OfficeCollection)))
+			mux.Handle("/api/v1/admin/office-locations/", adminOnly(http.HandlerFunc(locationHandler.OfficeResource)))
+			mux.Handle("/api/v1/admin/location-assignments", adminOnly(http.HandlerFunc(locationHandler.AssignmentCollection)))
+			mux.Handle("/api/v1/admin/location-assignments/", adminOnly(http.HandlerFunc(locationHandler.AssignmentResource)))
 			mux.Handle("/api/v1/attendance/today", userOnly(http.HandlerFunc(attendanceHandler.Today)))
+			mux.Handle("/api/v1/attendance/location-requirement", userOnly(http.HandlerFunc(locationHandler.LocationRequirement)))
 			mux.Handle("/api/v1/attendance/check-in", userOnly(http.HandlerFunc(attendanceHandler.CheckIn)))
 			mux.Handle("/api/v1/attendance/check-out", userOnly(http.HandlerFunc(attendanceHandler.CheckOut)))
 			mux.Handle("/api/v1/attendance/history", userOnly(http.HandlerFunc(attendanceHandler.History)))
