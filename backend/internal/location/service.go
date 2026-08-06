@@ -63,6 +63,9 @@ func (s Service) ListOfficeLocations(ctx context.Context, filter OfficeLocationL
 	if err != nil {
 		return OfficeLocationList{}, ErrInternal
 	}
+	if items == nil {
+		items = []OfficeLocation{}
+	}
 	return OfficeLocationList{Items: items, Page: normalized.Page, PageSize: normalized.PageSize, TotalItems: total, TotalPages: totalPages(total, normalized.PageSize)}, nil
 }
 

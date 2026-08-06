@@ -98,6 +98,9 @@ func TestOfficeLocationServiceRules(t *testing.T) {
 		if err != nil || len(list.Items) != 0 || list.Page != 1 || list.PageSize != 10 {
 			t.Fatalf("list = %+v err=%v", list, err)
 		}
+		if list.Items == nil {
+			t.Fatal("list.Items is nil, want empty slice")
+		}
 	})
 }
 
