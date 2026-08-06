@@ -2,6 +2,7 @@ package location
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -80,6 +81,99 @@ func TestLocationHandlerSuccessAndBadRequests(t *testing.T) {
 	}
 }
 
+func TestLocationHandlerResponseJSONContract(t *testing.T) {
+	handler := protectedLocationHandler(newFakeHTTPService(), auth.Claims{Role: user.RoleAdmin})
+
+	t.Run("office list empty items and pagination", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/office-locations?page=1&page_size=10", nil)
+		request.Header.Set("Authorization", "Bearer valid-token")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
+		}
+
+		var payload struct {
+			Status string `json:"status"`
+			Data   struct {
+				Items      []OfficeLocation `json:"items"`
+				Page       int              `json:"page"`
+				PageSize   int              `json:"page_size"`
+				TotalItems int              `json:"total_items"`
+				TotalPages int              `json:"total_pages"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if payload.Status != "ok" || payload.Data.Items == nil || len(payload.Data.Items) != 0 {
+			t.Fatalf("payload = %+v", payload)
+		}
+		if payload.Data.Page != 1 || payload.Data.PageSize != 10 || payload.Data.TotalItems != 0 || payload.Data.TotalPages != 0 {
+			t.Fatalf("pagination = %+v", payload.Data)
+		}
+		assertJSONFieldType(t, response.Body.Bytes(), "data.items", "array")
+	})
+
+	t.Run("office detail address null and coordinates are numbers", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/office-locations/"+testOfficeID, nil)
+		request.Header.Set("Authorization", "Bearer valid-token")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
+		}
+
+		var payload map[string]any
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		data := payload["data"].(map[string]any)
+		if data["address"] != nil {
+			t.Fatalf("address = %#v, want nil", data["address"])
+		}
+		if _, ok := data["latitude"].(float64); !ok {
+			t.Fatalf("latitude type = %T, want number", data["latitude"])
+		}
+		if _, ok := data["longitude"].(float64); !ok {
+			t.Fatalf("longitude type = %T, want number", data["longitude"])
+		}
+	})
+
+	t.Run("assignment list empty items and pagination", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/location-assignments?page=1&page_size=10", nil)
+		request.Header.Set("Authorization", "Bearer valid-token")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
+		}
+		assertJSONFieldType(t, response.Body.Bytes(), "data.items", "array")
+	})
+
+	t.Run("assignment detail uses office_location nested object", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/location-assignments/"+testAssignmentID, nil)
+		request.Header.Set("Authorization", "Bearer valid-token")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, body=%s", response.Code, response.Body.String())
+		}
+
+		var payload map[string]any
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		data := payload["data"].(map[string]any)
+		if _, ok := data["office_location"].(map[string]any); !ok {
+			t.Fatalf("office_location type = %T, body=%s", data["office_location"], response.Body.String())
+		}
+		if _, exists := data["office"]; exists {
+			t.Fatalf("unexpected office field in body=%s", response.Body.String())
+		}
+	})
+}
+
 func TestLocationHandlerErrors(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -143,6 +237,30 @@ func protectedLocationHandler(service *fakeHTTPService, claims auth.Claims) http
 	mux.HandleFunc("/api/v1/admin/location-assignments", handler.AssignmentCollection)
 	mux.HandleFunc("/api/v1/admin/location-assignments/", handler.AssignmentResource)
 	return auth.Authenticate(fakeVerifier{claims: claims}, auth.RequireRole(user.RoleAdmin, mux))
+}
+
+func assertJSONFieldType(t *testing.T, body []byte, path string, want string) {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	current := any(payload)
+	for _, part := range strings.Split(path, ".") {
+		object, ok := current.(map[string]any)
+		if !ok {
+			t.Fatalf("%s parent type = %T", path, current)
+		}
+		current = object[part]
+	}
+	switch want {
+	case "array":
+		if _, ok := current.([]any); !ok {
+			t.Fatalf("%s type = %T, want array", path, current)
+		}
+	default:
+		t.Fatalf("unsupported wanted type %q", want)
+	}
 }
 
 func protectedUserLocationRequirementHandler(service *fakeHTTPService, claims auth.Claims) http.Handler {

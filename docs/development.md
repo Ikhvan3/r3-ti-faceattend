@@ -236,6 +236,54 @@ Gunakan hanya data dummy development. Jangan memakai data pegawai PTPN yang
 sebenarnya pada database lokal, dokumentasi, commit, issue, screenshot, atau
 log.
 
+### Admin Web Lokasi Kantor dan Penugasan Lokasi
+
+Route halaman admin lokasi:
+
+- `GET /office-locations`
+- `GET /office-locations/new`
+- `GET /office-locations/{id}`
+- `GET /office-locations/{id}/edit`
+- `GET /location-assignments`
+- `GET /location-assignments/new`
+- `GET /location-assignments/{id}`
+
+BFF endpoint yang dipanggil browser admin:
+
+- `POST /api/admin/office-locations`
+- `PUT /api/admin/office-locations/{id}`
+- `PATCH /api/admin/office-locations/{id}/status`
+- `POST /api/admin/location-assignments`
+- `PATCH /api/admin/location-assignments/{id}/end`
+
+Server Components membaca list dan detail langsung dari Golang REST API dengan
+token HttpOnly cookie server-side. Browser hanya mengirim mutasi ke BFF Next.js
+dan tidak menerima access token atau refresh token sebagai JSON.
+
+Alur create lokasi:
+
+1. Admin membuka `/office-locations/new`.
+2. Form mengirim `name`, `address`, `latitude`, `longitude`, dan
+   `radius_meters` ke BFF.
+3. BFF menolak field tambahan seperti `is_active`, `created_at`, dan
+   `updated_at`, lalu meneruskan request ke Golang API.
+4. Backend membuat lokasi baru sebagai lokasi aktif.
+
+Alur create dan end penugasan lokasi:
+
+1. Admin membuka `/location-assignments/new`.
+2. Pilihan pegawai memakai pegawai `USER`; pilihan lokasi hanya memakai lokasi
+   aktif.
+3. Form mengirim `user_id`, `office_location_id`, `effective_from`, dan
+   `effective_to` opsional dalam format `YYYY-MM-DD`.
+4. Jika periode overlap, backend mengembalikan `409` dan UI menampilkan pesan
+   aman.
+5. Detail assignment menyediakan tombol `Akhiri Penugasan` untuk assignment
+   yang belum berakhir. Tanggal akhir bersifat inklusif.
+
+Tahap ini hanya menambahkan UI admin dan BFF untuk data lokasi. Mobile belum
+meminta GPS dan check-in/check-out belum melakukan enforcement geofence.
+
 ## Backend
 
 ```powershell

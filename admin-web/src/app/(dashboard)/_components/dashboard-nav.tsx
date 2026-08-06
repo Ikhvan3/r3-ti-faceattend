@@ -8,6 +8,8 @@ const NAV_ITEMS = [
   { href: "/employees", label: "Pegawai TI" },
   { href: "/work-schedules", label: "Jadwal Kerja" },
   { href: "/schedule-assignments", label: "Penugasan Jadwal" },
+  { href: "/office-locations", label: "Lokasi Kantor" },
+  { href: "/location-assignments", label: "Penugasan Lokasi" },
 ];
 
 export function DashboardNav() {

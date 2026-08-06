@@ -1,7 +1,6 @@
 # R3 TI FaceAttend
 
-R3 TI FaceAttend adalah prototype absensi lokal untuk pegawai Divisi Teknologi
-Informasi PTPN I Regional 3 Semarang.
+R3 TI FaceAttend adalah prototype absensi lokal untuk pegawai Divisi Teknologi.
 
 ## Struktur Repository
 
@@ -14,9 +13,10 @@ Informasi PTPN I Regional 3 Semarang.
 
 Prototype saat ini mencakup autentikasi admin, backend Employee Management API,
 antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi,
-manajemen jadwal kerja, penugasan jadwal, autentikasi mobile untuk pegawai
-`USER` aktif, dan absensi dasar. Geolocation, lokasi kerja, face recognition,
-liveness, laporan, dan dashboard statistik belum masuk scope tahap ini.
+manajemen jadwal kerja, penugasan jadwal, manajemen lokasi kantor, penugasan
+lokasi, autentikasi mobile untuk pegawai `USER` aktif, dan absensi dasar.
+Enforcement geofence, GPS mobile, face recognition, liveness, laporan, dan
+dashboard statistik belum masuk scope tahap ini.
 
 ## Komponen Lokal
 
@@ -51,13 +51,17 @@ Setelah login admin, modul yang tersedia:
 - `/schedule-assignments`
 - `/schedule-assignments/new`
 - `/schedule-assignments/{id}`
+- `/office-locations`
+- `/office-locations/new`
+- `/office-locations/{id}`
+- `/office-locations/{id}/edit`
+- `/location-assignments`
+- `/location-assignments/new`
+- `/location-assignments/{id}`
 
-Mutasi jadwal kerja dan penugasan jadwal melewati Next.js BFF di
-`/api/admin/work-schedules*` dan `/api/admin/schedule-assignments*`. Token
-tetap berada di HttpOnly cookie dan semua data tetap melewati Golang REST API.
-
-Gunakan hanya data dummy pada development. Jangan memakai data pegawai PTPN
-yang sebenarnya.
+Mutasi jadwal kerja, penugasan jadwal, lokasi kantor, dan penugasan lokasi
+melewati Next.js BFF di `/api/admin/*`. Token tetap berada di HttpOnly cookie
+dan semua data tetap melewati Golang REST API.
 
 ## Dokumentasi
 
