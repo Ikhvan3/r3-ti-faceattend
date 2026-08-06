@@ -266,6 +266,178 @@ Invoke-RestMethod `
 
 Status yang diterima hanya `ACTIVE`, `INACTIVE`, dan `SUSPENDED`.
 
+## Admin Work Schedule Management
+
+Endpoint jadwal kerja hanya untuk access token role `ADMIN`.
+
+### Daftar Jadwal Kerja
+
+- `GET /api/v1/admin/work-schedules`
+
+Query: `page` default `1`, `page_size` default `10` maksimum `100`,
+`search` pada `name`, dan `status` opsional `ACTIVE` atau `INACTIVE`.
+Daftar kosong tetap HTTP `200` dengan `items: []`.
+
+```powershell
+Invoke-RestMethod `
+  -Method Get `
+  -Uri "http://localhost:8080/api/v1/admin/work-schedules?page=1&page_size=10&status=ACTIVE" `
+  -Headers $Headers
+```
+
+### Tambah Jadwal Kerja
+
+- `POST /api/v1/admin/work-schedules`
+
+```json
+{
+  "name": "Jadwal Kerja Reguler",
+  "start_time": "08:00",
+  "end_time": "17:00",
+  "grace_minutes": 15
+}
+```
+
+Jadwal baru selalu aktif. Field `is_active`, `created_at`, dan `updated_at`
+tidak diterima dari body. Jadwal harus berada dalam hari yang sama,
+`end_time` harus setelah `start_time`, dan `grace_minutes` harus `0` sampai
+`240` menit. Nama duplikat mengembalikan HTTP `409`.
+
+```powershell
+$ScheduleBody = @{
+  name = "Jadwal Kerja Reguler"
+  start_time = "08:00"
+  end_time = "17:00"
+  grace_minutes = 15
+} | ConvertTo-Json
+
+$Schedule = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:8080/api/v1/admin/work-schedules" `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body $ScheduleBody
+```
+
+### Detail dan Update Jadwal Kerja
+
+- `GET /api/v1/admin/work-schedules/{id}`
+- `PUT /api/v1/admin/work-schedules/{id}`
+
+Update hanya menerima `name`, `start_time`, `end_time`, dan `grace_minutes`.
+`is_active` tidak diubah lewat endpoint update.
+
+```powershell
+$ScheduleUpdateBody = @{
+  name = "Jadwal Kerja Reguler Updated"
+  start_time = "08:00"
+  end_time = "17:00"
+  grace_minutes = 20
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Put `
+  -Uri "http://localhost:8080/api/v1/admin/work-schedules/$($Schedule.data.id)" `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body $ScheduleUpdateBody
+```
+
+### Status Jadwal Kerja
+
+- `PATCH /api/v1/admin/work-schedules/{id}/status`
+
+```json
+{
+  "is_active": false
+}
+```
+
+Jadwal yang memiliki assignment aktif atau masa depan berdasarkan
+`BUSINESS_TIMEZONE` tidak boleh dinonaktifkan dan mengembalikan HTTP `409`.
+Aktivasi kembali diperbolehkan.
+
+## Admin Schedule Assignment
+
+Endpoint assignment jadwal hanya untuk access token role `ADMIN`. Response
+memuat profil pegawai aman dan ringkasan jadwal; tidak memuat
+`password_hash`, token, session, atau attendance record.
+
+Tanggal efektif memakai semantik inklusif: `effective_from` dan
+`effective_to` sama-sama termasuk periode assignment. `effective_to = null`
+berarti tidak memiliki batas akhir. Assignment boleh diakhiri pada tanggal
+hari ini; assignment masih berlaku sampai akhir tanggal bisnis tersebut.
+
+### Daftar Assignment
+
+- `GET /api/v1/admin/schedule-assignments`
+
+Query: `page`, `page_size`, `search` untuk `employee_number`, `name`, atau
+`email`, `user_id`, `schedule_id`, dan `status` opsional `CURRENT`,
+`UPCOMING`, atau `ENDED`. Status dihitung menggunakan `BUSINESS_TIMEZONE`.
+
+```powershell
+Invoke-RestMethod `
+  -Method Get `
+  -Uri "http://localhost:8080/api/v1/admin/schedule-assignments?status=CURRENT" `
+  -Headers $Headers
+```
+
+### Tambah Assignment
+
+- `POST /api/v1/admin/schedule-assignments`
+
+```json
+{
+  "user_id": "00000000-0000-4000-8000-000000000001",
+  "schedule_id": "00000000-0000-4000-8000-000000000010",
+  "effective_from": "2026-08-05",
+  "effective_to": null
+}
+```
+
+`user_id` wajib dan tidak dapat diganti dengan `employee_number`. User harus
+tersedia dengan role `USER`, schedule harus tersedia dan aktif, periode tidak
+boleh overlap dengan assignment user yang sama. Overlap mengembalikan HTTP
+`409`.
+
+```powershell
+$AssignmentBody = @{
+  user_id = $Employee.data.id
+  schedule_id = $Schedule.data.id
+  effective_from = "2026-08-05"
+  effective_to = $null
+} | ConvertTo-Json
+
+$Assignment = Invoke-RestMethod `
+  -Method Post `
+  -Uri "http://localhost:8080/api/v1/admin/schedule-assignments" `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body $AssignmentBody
+```
+
+### Detail dan Akhiri Assignment
+
+- `GET /api/v1/admin/schedule-assignments/{id}`
+- `PATCH /api/v1/admin/schedule-assignments/{id}/end`
+
+```powershell
+$EndAssignmentBody = @{
+  effective_to = "2026-08-31"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Patch `
+  -Uri "http://localhost:8080/api/v1/admin/schedule-assignments/$($Assignment.data.id)/end" `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body $EndAssignmentBody
+```
+
+Assignment yang sudah berakhir tetap dapat dibaca. Endpoint ini tidak
+menghapus assignment dan tidak mengubah attendance record lama.
+
 ## Basic Attendance User
 
 Endpoint attendance hanya untuk access token role `USER`. Backend selalu

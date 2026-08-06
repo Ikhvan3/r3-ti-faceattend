@@ -93,6 +93,21 @@ Browser admin
 Browser tidak menerima access token atau refresh token sebagai JSON. Token
 tetap berada pada HttpOnly cookie dan hanya dibaca oleh server Next.js.
 
+Untuk modul manajemen jadwal kerja dan assignment admin:
+
+```text
+Admin web atau client admin lokal
+-> Golang REST API /api/v1/admin/work-schedules
+-> Golang REST API /api/v1/admin/schedule-assignments
+-> PostgreSQL
+```
+
+Endpoint tersebut dilindungi `Authenticate` dan `RequireRole(ADMIN)`. Backend
+memvalidasi jadwal dalam hari yang sama, status aktif schedule, role `USER`
+untuk assignment, tanggal bisnis berbasis `BUSINESS_TIMEZONE`, serta konflik
+periode assignment. PostgreSQL tetap menjadi pengaman terakhir untuk mencegah
+assignment overlap saat ada request concurrent.
+
 ## Prinsip Teknis
 
 - Server time menjadi sumber waktu absensi yang otoritatif.
