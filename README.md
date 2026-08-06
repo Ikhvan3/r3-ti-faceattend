@@ -13,10 +13,10 @@ Informasi PTPN I Regional 3 Semarang.
 ## Batas Tahap Ini
 
 Prototype saat ini mencakup autentikasi admin, backend Employee Management API,
-antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi, dan
-autentikasi mobile untuk pegawai `USER` aktif. Modul absensi, geolocation,
-jadwal, lokasi kerja, face recognition, liveness, laporan, dan dashboard
-statistik belum masuk scope tahap ini.
+antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi,
+manajemen jadwal kerja, penugasan jadwal, autentikasi mobile untuk pegawai
+`USER` aktif, dan absensi dasar. Geolocation, lokasi kerja, face recognition,
+liveness, laporan, dan dashboard statistik belum masuk scope tahap ini.
 
 ## Komponen Lokal
 
@@ -44,6 +44,17 @@ Setelah login admin, modul yang tersedia:
 - `/employees/new`
 - `/employees/{id}`
 - `/employees/{id}/edit`
+- `/work-schedules`
+- `/work-schedules/new`
+- `/work-schedules/{id}`
+- `/work-schedules/{id}/edit`
+- `/schedule-assignments`
+- `/schedule-assignments/new`
+- `/schedule-assignments/{id}`
+
+Mutasi jadwal kerja dan penugasan jadwal melewati Next.js BFF di
+`/api/admin/work-schedules*` dan `/api/admin/schedule-assignments*`. Token
+tetap berada di HttpOnly cookie dan semua data tetap melewati Golang REST API.
 
 Gunakan hanya data dummy pada development. Jangan memakai data pegawai PTPN
 yang sebenarnya.
