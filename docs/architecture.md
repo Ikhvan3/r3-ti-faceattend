@@ -96,9 +96,21 @@ tetap berada pada HttpOnly cookie dan hanya dibaca oleh server Next.js.
 Untuk modul manajemen jadwal kerja dan assignment admin:
 
 ```text
-Admin web atau client admin lokal
+Server Component /work-schedules dan /schedule-assignments
+-> server-only Golang API client
 -> Golang REST API /api/v1/admin/work-schedules
 -> Golang REST API /api/v1/admin/schedule-assignments
+-> PostgreSQL
+```
+
+Mutasi dari browser admin memakai BFF Next.js:
+
+```text
+Browser admin
+-> Next.js Route Handler /api/admin/work-schedules*
+-> Next.js Route Handler /api/admin/schedule-assignments*
+-> Golang REST API /api/v1/admin/work-schedules*
+-> Golang REST API /api/v1/admin/schedule-assignments*
 -> PostgreSQL
 ```
 
@@ -107,6 +119,11 @@ memvalidasi jadwal dalam hari yang sama, status aktif schedule, role `USER`
 untuk assignment, tanggal bisnis berbasis `BUSINESS_TIMEZONE`, serta konflik
 periode assignment. PostgreSQL tetap menjadi pengaman terakhir untuk mencegah
 assignment overlap saat ada request concurrent.
+
+Browser admin tidak menerima token dari BFF. Access token dan refresh token
+tetap berada dalam HttpOnly cookie yang hanya dibaca server Next.js. Assignment
+yang dibuat admin menjadi sumber jadwal aktif bagi endpoint mobile attendance,
+tetapi mobile tetap memakai Golang API langsung sebagai role `USER`.
 
 ## Prinsip Teknis
 

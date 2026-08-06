@@ -183,6 +183,59 @@ Gunakan hanya data dummy development. Jangan memakai nama, email, nomor
 pegawai, nomor telepon, atau data personal PTPN yang sebenarnya pada database
 lokal, dokumentasi, commit, issue, screenshot, atau log.
 
+### Admin Web Jadwal Kerja dan Penugasan
+
+Route halaman admin schedule:
+
+- `GET /work-schedules`
+- `GET /work-schedules/new`
+- `GET /work-schedules/{id}`
+- `GET /work-schedules/{id}/edit`
+- `GET /schedule-assignments`
+- `GET /schedule-assignments/new`
+- `GET /schedule-assignments/{id}`
+
+BFF endpoint yang dipanggil browser admin:
+
+- `POST /api/admin/work-schedules`
+- `PUT /api/admin/work-schedules/{id}`
+- `PATCH /api/admin/work-schedules/{id}/status`
+- `POST /api/admin/schedule-assignments`
+- `PATCH /api/admin/schedule-assignments/{id}/end`
+
+Server Components membaca list dan detail langsung dari Golang REST API dengan
+token HttpOnly cookie server-side. Browser hanya mengirim mutasi ke BFF Next.js
+dan tidak menerima access token atau refresh token sebagai JSON.
+
+Alur create schedule:
+
+1. Admin membuka `/work-schedules/new`.
+2. Form mengirim `name`, `start_time`, `end_time`, dan `grace_minutes` ke BFF.
+3. BFF menolak field tambahan seperti `is_active`, `created_at`, dan
+   `updated_at`, lalu meneruskan request ke Golang API.
+4. Jadwal baru dibuat aktif oleh backend.
+
+Alur create dan end assignment:
+
+1. Admin membuka `/schedule-assignments/new`.
+2. Pilihan pegawai memakai `user_id` dari pegawai `USER`; pilihan jadwal hanya
+   memakai jadwal aktif.
+3. Form mengirim `user_id`, `schedule_id`, `effective_from`, dan
+   `effective_to` opsional dalam format `YYYY-MM-DD`.
+4. Jika periode overlap, backend mengembalikan `409` dan UI menampilkan pesan
+   aman.
+5. Detail assignment menyediakan tombol `Akhiri Penugasan` untuk assignment
+   yang belum berakhir. Tanggal akhir bersifat inklusif.
+
+Assignment jadwal menjadi sumber jadwal untuk endpoint mobile attendance.
+Mobile tetap membaca jadwal melalui Golang API attendance sebagai role `USER`;
+admin web tidak mengubah alur token mobile, attendance record lama, GPS,
+geofence, kamera, face recognition, liveness, atau laporan.
+
+Gunakan hanya data dummy development. Jangan memakai data pegawai PTPN yang
+sebenarnya pada database lokal, dokumentasi, commit, issue, screenshot, atau
+log.
+
 ## Backend
 
 ```powershell

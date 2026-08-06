@@ -23,6 +23,27 @@ import {
   isEmployee,
   isRecord,
 } from "@/lib/employee/utils";
+import type {
+  CreateScheduleAssignmentRequest,
+  CreateWorkScheduleRequest,
+  EndScheduleAssignmentRequest,
+  ScheduleAssignment,
+  ScheduleAssignmentListQuery,
+  ScheduleAssignmentListResponse,
+  UpdateWorkScheduleRequest,
+  UpdateWorkScheduleStatusRequest,
+  WorkSchedule,
+  WorkScheduleListQuery,
+  WorkScheduleListResponse,
+} from "@/lib/schedule/types";
+import {
+  buildAssignmentQueryParams,
+  buildWorkScheduleQueryParams,
+  isWorkSchedule,
+  isWorkScheduleListResponse,
+  normalizeAssignment,
+  normalizeAssignmentListResponse,
+} from "@/lib/schedule/utils";
 import {
   clearAuthCookies,
   readAccessToken,
@@ -181,6 +202,181 @@ export async function updateEmployeeStatusWithSession(
   );
 }
 
+export async function getWorkSchedules(
+  query: WorkScheduleListQuery,
+): Promise<WorkScheduleListResponse> {
+  const queryString = buildWorkScheduleQueryParams(query);
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<WorkScheduleListResponse>(`/admin/work-schedules?${queryString}`, {
+      method: "GET",
+      accessToken,
+    }),
+  );
+
+  if (!isWorkScheduleListResponse(response)) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons daftar jadwal kerja tidak sesuai.",
+      502,
+    );
+  }
+
+  return response;
+}
+
+export async function getActiveWorkSchedules(): Promise<WorkSchedule[]> {
+  const result = await getWorkSchedules({
+    page: 1,
+    page_size: 100,
+    status: "ACTIVE",
+  });
+  return result.items;
+}
+
+export async function getWorkScheduleByID(id: string): Promise<WorkSchedule> {
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<WorkSchedule>(`/admin/work-schedules/${encodeURIComponent(id)}`, {
+      method: "GET",
+      accessToken,
+    }),
+  );
+
+  if (!isWorkSchedule(response)) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons jadwal kerja tidak sesuai.",
+      502,
+    );
+  }
+
+  return response;
+}
+
+export async function createWorkScheduleWithSession(
+  request: CreateWorkScheduleRequest,
+): Promise<WorkSchedule> {
+  return mutateWorkScheduleWithRefresh((accessToken) =>
+    goFetch<WorkSchedule>("/admin/work-schedules", {
+      method: "POST",
+      body: request,
+      accessToken,
+    }),
+  );
+}
+
+export async function updateWorkScheduleWithSession(
+  id: string,
+  request: UpdateWorkScheduleRequest,
+): Promise<WorkSchedule> {
+  return mutateWorkScheduleWithRefresh((accessToken) =>
+    goFetch<WorkSchedule>(`/admin/work-schedules/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: request,
+      accessToken,
+    }),
+  );
+}
+
+export async function updateWorkScheduleStatusWithSession(
+  id: string,
+  request: UpdateWorkScheduleStatusRequest,
+): Promise<WorkSchedule> {
+  return mutateWorkScheduleWithRefresh((accessToken) =>
+    goFetch<WorkSchedule>(
+      `/admin/work-schedules/${encodeURIComponent(id)}/status`,
+      {
+        method: "PATCH",
+        body: request,
+        accessToken,
+      },
+    ),
+  );
+}
+
+export async function getScheduleAssignments(
+  query: ScheduleAssignmentListQuery,
+): Promise<ScheduleAssignmentListResponse> {
+  const queryString = buildAssignmentQueryParams(query);
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<ScheduleAssignmentListResponse>(
+      `/admin/schedule-assignments?${queryString}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    ),
+  );
+
+  const normalized = normalizeAssignmentListResponse(response);
+  if (!normalized) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons daftar penugasan jadwal tidak sesuai.",
+      502,
+    );
+  }
+
+  return normalized;
+}
+
+export async function getScheduleAssignmentByID(
+  id: string,
+): Promise<ScheduleAssignment> {
+  const response = await readWithRefresh((accessToken) =>
+    goFetch<ScheduleAssignment>(
+      `/admin/schedule-assignments/${encodeURIComponent(id)}`,
+      {
+        method: "GET",
+        accessToken,
+      },
+    ),
+  );
+
+  const normalized = normalizeAssignment(response);
+  if (!normalized) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons penugasan jadwal tidak sesuai.",
+      502,
+    );
+  }
+
+  return normalized;
+}
+
+export async function createScheduleAssignmentWithSession(
+  request: CreateScheduleAssignmentRequest,
+): Promise<ScheduleAssignment> {
+  return mutateAssignmentWithRefresh((accessToken) =>
+    goFetch<ScheduleAssignment>("/admin/schedule-assignments", {
+      method: "POST",
+      body: request,
+      accessToken,
+    }),
+  );
+}
+
+export async function endScheduleAssignmentWithSession(
+  id: string,
+  request: EndScheduleAssignmentRequest,
+): Promise<ScheduleAssignment> {
+  return mutateAssignmentWithRefresh((accessToken) =>
+    goFetch<ScheduleAssignment>(
+      `/admin/schedule-assignments/${encodeURIComponent(id)}/end`,
+      {
+        method: "PATCH",
+        body: request,
+        accessToken,
+      },
+    ),
+  );
+}
+
+export async function getEmployeeOptions(): Promise<Employee[]> {
+  const result = await getEmployees({ page: 1, page_size: 100, status: "ACTIVE" });
+  return result.items.filter((employee) => employee.role === "USER");
+}
+
 export async function readAccessTokenWithRefresh(): Promise<string | null> {
   const accessToken = await readAccessToken();
   if (accessToken) {
@@ -260,6 +456,63 @@ async function mutateEmployeeWithRefresh(
   }
 
   return employee;
+}
+
+async function mutateWorkScheduleWithRefresh(
+  operation: (accessToken: string) => Promise<WorkSchedule>,
+): Promise<WorkSchedule> {
+  const schedule = await mutateWithRefresh(operation);
+  if (!isWorkSchedule(schedule)) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons jadwal kerja tidak sesuai.",
+      502,
+    );
+  }
+  return schedule;
+}
+
+async function mutateAssignmentWithRefresh(
+  operation: (accessToken: string) => Promise<ScheduleAssignment>,
+): Promise<ScheduleAssignment> {
+  const assignment = await mutateWithRefresh(operation);
+  const normalized = normalizeAssignment(assignment);
+  if (!normalized) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons penugasan jadwal tidak sesuai.",
+      502,
+    );
+  }
+  return normalized;
+}
+
+async function mutateWithRefresh<T>(
+  operation: (accessToken: string) => Promise<T>,
+): Promise<T> {
+  let accessToken = await readAccessToken();
+  if (!accessToken) {
+    const refreshedAccessToken = await refreshAccessTokenFromCookie();
+    accessToken = refreshedAccessToken ?? undefined;
+  }
+  if (!accessToken) {
+    throw new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
+  }
+
+  try {
+    return await operation(accessToken);
+  } catch (error) {
+    if (!(error instanceof SafeApiError) || error.code !== "UNAUTHORIZED") {
+      throw error;
+    }
+  }
+
+  const refreshedAccessToken = await refreshAccessTokenFromCookie();
+  if (!refreshedAccessToken) {
+    throw new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
+  }
+
+  return operation(refreshedAccessToken);
 }
 
 async function readWithRefresh<T>(
@@ -466,6 +719,15 @@ function isEmployeeListResponse(value: unknown): value is EmployeeListResponse {
 
 function safeConflictMessage(message: string): string {
   const normalized = message.toLowerCase();
+  if (normalized.includes("bertumpang") || normalized.includes("overlap")) {
+    return "Periode penugasan jadwal bertumpang tindih dengan penugasan lain.";
+  }
+  if (normalized.includes("assignment aktif") || normalized.includes("masa depan")) {
+    return "Jadwal tidak dapat dinonaktifkan karena masih digunakan oleh pegawai.";
+  }
+  if (normalized.includes("jadwal")) {
+    return "Nama jadwal kerja sudah digunakan.";
+  }
   if (normalized.includes("email")) {
     return "Email sudah digunakan oleh pegawai lain.";
   }
