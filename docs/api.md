@@ -438,6 +438,107 @@ Invoke-RestMethod `
 Assignment yang sudah berakhir tetap dapat dibaca. Endpoint ini tidak
 menghapus assignment dan tidak mengubah attendance record lama.
 
+## Admin Office Location Management
+
+Endpoint lokasi kantor hanya untuk access token role `ADMIN`.
+
+### Daftar Lokasi Kantor
+
+- `GET /api/v1/admin/office-locations`
+
+Query: `page` default `1`, `page_size` default `10` maksimum `100`,
+`search` pada `name` dan `address`, dan `status` opsional `ACTIVE` atau
+`INACTIVE`. Daftar kosong tetap HTTP `200` dengan `items: []`.
+
+### Tambah Lokasi Kantor
+
+- `POST /api/v1/admin/office-locations`
+
+```json
+{
+  "name": "Kantor Regional 3",
+  "address": "Alamat development",
+  "latitude": -6.123456,
+  "longitude": 106.123456,
+  "radius_meters": 100
+}
+```
+
+Lokasi baru selalu aktif. Field `is_active`, `created_at`, dan `updated_at`
+tidak diterima dari body. Latitude harus `-90` sampai `90`, longitude harus
+`-180` sampai `180`, dan radius geofence harus `10` sampai `2000` meter.
+
+### Detail dan Update Lokasi Kantor
+
+- `GET /api/v1/admin/office-locations/{id}`
+- `PUT /api/v1/admin/office-locations/{id}`
+
+Update hanya menerima `name`, `address`, `latitude`, `longitude`, dan
+`radius_meters`. Status hanya diubah melalui endpoint status.
+
+### Status Lokasi Kantor
+
+- `PATCH /api/v1/admin/office-locations/{id}/status`
+
+```json
+{
+  "is_active": false
+}
+```
+
+Lokasi yang memiliki assignment lokasi `CURRENT` atau `UPCOMING` berdasarkan
+`BUSINESS_TIMEZONE` tidak boleh dinonaktifkan dan mengembalikan HTTP `409`.
+
+## Admin Location Assignment
+
+Endpoint assignment lokasi hanya untuk access token role `ADMIN`. Response
+memuat profil pegawai aman dan lokasi kantor; tidak memuat `password_hash`,
+token, session, atau attendance record.
+
+Tanggal efektif memakai semantik inklusif: `effective_from` dan
+`effective_to` sama-sama termasuk periode assignment. `effective_to = null`
+berarti tidak memiliki batas akhir. PostgreSQL mencegah overlap periode untuk
+user yang sama.
+
+### Daftar Assignment Lokasi
+
+- `GET /api/v1/admin/location-assignments`
+
+Query: `page`, `page_size`, `search` untuk `employee_number`, `name`, atau
+`email`, `user_id`, `office_location_id`, dan `status` opsional `CURRENT`,
+`UPCOMING`, atau `ENDED`.
+
+### Tambah Assignment Lokasi
+
+- `POST /api/v1/admin/location-assignments`
+
+```json
+{
+  "user_id": "00000000-0000-4000-8000-000000000001",
+  "office_location_id": "00000000-0000-4000-8000-000000000030",
+  "effective_from": "2026-08-06",
+  "effective_to": null
+}
+```
+
+`user_id` wajib dan tidak dapat diganti dengan `employee_number`. User harus
+tersedia dengan role `USER`, lokasi harus tersedia dan aktif, dan periode
+tidak boleh overlap dengan assignment lokasi user yang sama. Overlap
+mengembalikan HTTP `409`.
+
+### Detail dan Akhiri Assignment Lokasi
+
+- `GET /api/v1/admin/location-assignments/{id}`
+- `PATCH /api/v1/admin/location-assignments/{id}/end`
+
+```json
+{
+  "effective_to": "2026-08-31"
+}
+```
+
+Tanggal akhir bersifat inklusif. Tidak ada endpoint `DELETE`.
+
 ## Basic Attendance User
 
 Endpoint attendance hanya untuk access token role `USER`. Backend selalu
@@ -493,6 +594,21 @@ dengan `API_BASE_URL`. Jika access token kedaluwarsa, mobile melakukan refresh
 token satu kali melalui endpoint auth yang sudah ada, menyimpan token rotasi,
 dan mengulang request attendance satu kali. Mobile tidak mengirim `user_id`,
 tanggal, waktu, timezone, atau role pada request attendance.
+
+### Attendance Location Requirement
+
+Endpoint:
+
+- `GET /api/v1/attendance/location-requirement`
+
+Endpoint ini hanya untuk access token role `USER`. Backend mengambil `user_id`
+dari token dan menggunakan `BUSINESS_TIMEZONE` untuk mencari assignment lokasi
+hari ini. Request tidak menerima `user_id` dari query atau body.
+
+Response `data` memuat assignment lokasi aktif dan lokasi kantor aktif untuk
+pegawai tersebut. Jika assignment lokasi tidak tersedia, backend mengembalikan
+HTTP `404` dengan pesan aman. Endpoint ini belum meminta koordinat perangkat
+dan belum mengubah perilaku `check-in` atau `check-out`.
 
 ## Refresh Token
 

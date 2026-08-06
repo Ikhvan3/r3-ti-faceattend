@@ -558,6 +558,60 @@ Alur uji manual dengan PostgreSQL lokal:
 11. Token `ADMIN` harus ditolak HTTP `403`.
 12. Token `USER` lain tidak dapat melihat record user tersebut.
 
+### Office Location Backend
+
+Endpoint admin lokasi:
+
+- `GET /api/v1/admin/office-locations`
+- `POST /api/v1/admin/office-locations`
+- `GET /api/v1/admin/office-locations/{id}`
+- `PUT /api/v1/admin/office-locations/{id}`
+- `PATCH /api/v1/admin/office-locations/{id}/status`
+
+Endpoint assignment lokasi:
+
+- `GET /api/v1/admin/location-assignments`
+- `POST /api/v1/admin/location-assignments`
+- `GET /api/v1/admin/location-assignments/{id}`
+- `PATCH /api/v1/admin/location-assignments/{id}/end`
+
+Endpoint user:
+
+- `GET /api/v1/attendance/location-requirement`
+
+Semua route admin membutuhkan token role `ADMIN`. Endpoint
+`location-requirement` hanya menerima token role `USER` dan mengambil identitas
+pegawai dari token. Tahap ini tidak mewajibkan koordinat pada check-in/check-out
+agar mobile attendance lama tetap kompatibel.
+
+Alur uji manual dengan PostgreSQL lokal:
+
+1. Jalankan migration sampai `000005`.
+2. Login sebagai admin dummy dan simpan Bearer token ke `$Headers`.
+3. Buat lokasi aktif melalui `POST /api/v1/admin/office-locations`.
+4. List lokasi dan pastikan data muncul.
+5. Update `radius_meters`.
+6. Buat pegawai dummy `USER` aktif bila belum ada.
+7. Buat assignment lokasi kepada USER dummy.
+8. Login sebagai USER dummy dan panggil
+   `GET /api/v1/attendance/location-requirement`.
+9. Coba assignment overlap dan pastikan HTTP `409`.
+10. Buat assignment berurutan mulai tanggal setelah `effective_to` sebelumnya.
+11. Pastikan lokasi dengan assignment aktif atau masa depan tidak dapat
+    dinonaktifkan.
+12. Akhiri assignment dengan tanggal hari ini atau setelah `effective_from`.
+13. Pastikan lokasi tanpa assignment aktif dapat dinonaktifkan.
+14. Token `USER` harus ditolak dari route admin lokasi.
+15. Token `ADMIN` harus ditolak dari endpoint `location-requirement`.
+16. Pastikan `POST /api/v1/attendance/check-in` dan
+    `POST /api/v1/attendance/check-out` dengan body kosong tetap bekerja.
+17. Pastikan record attendance lama tetap terbaca dari `today` dan `history`.
+
+Keterbatasan: fondasi ini belum mendeteksi GPS spoofing, belum meminta lokasi
+perangkat, dan belum melakukan enforcement geofence. Tahap berikutnya dapat
+menambahkan payload koordinat opsional/bertahap pada attendance, menghitung
+jarak server-side, lalu mengaktifkan enforcement setelah mobile siap.
+
 ### Health Check
 
 Endpoint health tersedia di:
