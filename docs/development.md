@@ -426,6 +426,62 @@ $env:DEV_ATTENDANCE_GRACE_MINUTES="15"
 go run ./cmd/seed-attendance-dev
 ```
 
+Setelah backend admin schedule tersedia, assignment development lebih baik
+dibuat melalui endpoint admin:
+
+1. Login sebagai admin dummy.
+2. Buat jadwal melalui `POST /api/v1/admin/work-schedules`.
+3. Buat assignment pegawai dummy melalui
+   `POST /api/v1/admin/schedule-assignments`.
+4. Jalankan login mobile sebagai pegawai dummy dan baca
+   `GET /api/v1/attendance/today`.
+
+Seeder `seed-attendance-dev` tetap hanya alat development lokal untuk
+menyiapkan data dummy cepat. Jangan gunakan nama, email, nomor pegawai, nomor
+telepon, atau data personal PTPN yang sebenarnya.
+
+### Admin Work Schedule Backend
+
+Endpoint backend:
+
+- `GET /api/v1/admin/work-schedules`
+- `POST /api/v1/admin/work-schedules`
+- `GET /api/v1/admin/work-schedules/{id}`
+- `PUT /api/v1/admin/work-schedules/{id}`
+- `PATCH /api/v1/admin/work-schedules/{id}/status`
+
+Endpoint assignment:
+
+- `GET /api/v1/admin/schedule-assignments`
+- `POST /api/v1/admin/schedule-assignments`
+- `GET /api/v1/admin/schedule-assignments/{id}`
+- `PATCH /api/v1/admin/schedule-assignments/{id}/end`
+
+Semua endpoint membutuhkan token role `ADMIN`. Token role `USER` harus
+mengembalikan HTTP `403`. Query pagination dijalankan di PostgreSQL dengan
+`page_size` maksimum `100`.
+
+Alur uji manual dengan PostgreSQL lokal:
+
+1. Jalankan migration sampai `000004`.
+2. Login sebagai admin dummy dan simpan Bearer token ke `$Headers`.
+3. Buat satu jadwal aktif.
+4. List jadwal dan pastikan data muncul.
+5. Update jadwal.
+6. Buat pegawai dummy `USER` aktif melalui endpoint employee bila belum ada.
+7. Buat assignment ke pegawai dummy.
+8. Pastikan assignment muncul pada list.
+9. Coba assignment overlap dan pastikan HTTP `409`.
+10. Buat assignment berurutan mulai tanggal setelah `effective_to` sebelumnya.
+11. Pastikan jadwal dengan assignment aktif atau masa depan tidak dapat
+    dinonaktifkan.
+12. Akhiri assignment dengan tanggal hari ini atau tanggal setelah
+    `effective_from`; tanggal akhir bersifat inklusif.
+13. Pastikan endpoint attendance `USER` tetap dapat membaca jadwal aktifnya.
+14. Login sebagai token `USER` dan pastikan seluruh route admin HTTP `403`.
+15. Jalankan list pada filter yang kosong dan pastikan response `items: []`.
+16. Uji migration down/up pada database development yang aman bila memungkinkan.
+
 Endpoint USER:
 
 - `GET /api/v1/attendance/today`

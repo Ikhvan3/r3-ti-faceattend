@@ -289,6 +289,10 @@ Constraint dan index:
 
 - `employee_schedule_assignments_date_range_valid`
 - `employee_schedule_assignments_user_schedule_from_unique`
+- `employee_schedule_assignments_user_period_no_overlap` dari migration
+  `000004_prevent_overlapping_schedule_assignments` mencegah satu user memiliki
+  assignment jadwal yang periodenya overlap. Constraint memakai `daterange`
+  inklusif `[]`; `effective_to NULL` diperlakukan sebagai tanpa batas akhir.
 - `employee_schedule_assignments_user_effective_idx`
 - `employee_schedule_assignments_schedule_id_idx`
 
@@ -316,3 +320,29 @@ Constraint dan index:
 Timestamp check-in dan check-out disimpan sebagai `TIMESTAMPTZ`. Tanggal
 absensi ditentukan backend menggunakan timezone bisnis, default
 `Asia/Jakarta`.
+
+## Migration Pencegahan Overlap Assignment
+
+Migration `000004_prevent_overlapping_schedule_assignments` menambahkan
+extension PostgreSQL `btree_gist` bila belum tersedia, lalu menambahkan
+exclusion constraint pada `employee_schedule_assignments`.
+
+Semantik periode:
+
+- `effective_from` inklusif.
+- `effective_to` inklusif.
+- `effective_to NULL` berarti assignment tidak memiliki tanggal akhir.
+
+Contoh ditolak:
+
+- `2026-08-01` sampai `2026-08-31`
+- `2026-08-20` sampai `2026-09-10`
+
+Contoh diperbolehkan:
+
+- `2026-08-01` sampai `2026-08-31`
+- `2026-09-01` sampai `NULL`
+
+Migration down hanya menghapus constraint overlap. Data assignment tidak
+dihapus. Jangan memakai data pegawai asli untuk verifikasi migration atau
+contoh query.

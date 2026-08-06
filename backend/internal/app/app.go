@@ -103,6 +103,9 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			attendanceRepo := attendance.NewPostgresRepository(pool)
 			attendanceService := attendance.NewService(attendanceRepo, businessLocation)
 			attendanceHandler := attendance.NewHandler(attendanceService)
+			adminScheduleRepo := attendance.NewAdminPostgresRepository(pool)
+			adminScheduleService := attendance.NewAdminScheduleService(adminScheduleRepo, businessLocation)
+			adminScheduleHandler := attendance.NewAdminScheduleHandler(adminScheduleService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
 			}
@@ -117,6 +120,10 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/admin/ping", adminOnly(http.HandlerFunc(auth.AdminPing)))
 			mux.Handle("/api/v1/admin/employees", adminOnly(http.HandlerFunc(employeeHandler.Collection)))
 			mux.Handle("/api/v1/admin/employees/", adminOnly(http.HandlerFunc(employeeHandler.Resource)))
+			mux.Handle("/api/v1/admin/work-schedules", adminOnly(http.HandlerFunc(adminScheduleHandler.WorkScheduleCollection)))
+			mux.Handle("/api/v1/admin/work-schedules/", adminOnly(http.HandlerFunc(adminScheduleHandler.WorkScheduleResource)))
+			mux.Handle("/api/v1/admin/schedule-assignments", adminOnly(http.HandlerFunc(adminScheduleHandler.AssignmentCollection)))
+			mux.Handle("/api/v1/admin/schedule-assignments/", adminOnly(http.HandlerFunc(adminScheduleHandler.AssignmentResource)))
 			mux.Handle("/api/v1/attendance/today", userOnly(http.HandlerFunc(attendanceHandler.Today)))
 			mux.Handle("/api/v1/attendance/check-in", userOnly(http.HandlerFunc(attendanceHandler.CheckIn)))
 			mux.Handle("/api/v1/attendance/check-out", userOnly(http.HandlerFunc(attendanceHandler.CheckOut)))
