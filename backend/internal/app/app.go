@@ -38,6 +38,9 @@ func run() error {
 	if err := cfg.Geofence.Validate(); err != nil {
 		return err
 	}
+	if err := cfg.FaceVerification.Validate(); err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -115,7 +118,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			locationService := officelocation.NewService(locationRepo, locationRepo, businessLocation)
 			locationHandler := officelocation.NewHandler(locationService)
 			faceRepo := face.NewPostgresRepository(pool)
-			faceService := face.NewService(faceRepo, userRepo, face.ProductionModelRegistry())
+			faceService := face.NewService(faceRepo, userRepo, face.ProductionModelRegistry(), cfg.FaceVerification.Threshold)
 			faceHandler := face.NewHandler(faceService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
@@ -146,6 +149,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/attendance/history", userOnly(http.HandlerFunc(attendanceHandler.History)))
 			mux.Handle("/api/v1/face/status", userOnly(http.HandlerFunc(faceHandler.Status)))
 			mux.Handle("/api/v1/face/enroll", userOnly(http.HandlerFunc(faceHandler.Enroll)))
+			mux.Handle("/api/v1/face/verify", userOnly(http.HandlerFunc(faceHandler.Verify)))
 			mux.Handle("/api/v1/face/enrollment", userOnly(http.HandlerFunc(faceHandler.Enrollment)))
 		}
 	}

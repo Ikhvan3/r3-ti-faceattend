@@ -17,6 +17,7 @@ type Config struct {
 	Database         DatabaseConfig
 	Auth             AuthConfig
 	Geofence         GeofenceConfig
+	FaceVerification FaceVerificationConfig
 }
 
 type DatabaseConfig struct {
@@ -38,6 +39,10 @@ type AuthConfig struct {
 
 type GeofenceConfig struct {
 	MaxAccuracyMeters float64
+}
+
+type FaceVerificationConfig struct {
+	Threshold float64
 }
 
 func Load() Config {
@@ -62,6 +67,9 @@ func Load() Config {
 		},
 		Geofence: GeofenceConfig{
 			MaxAccuracyMeters: envFloat("GEOFENCE_MAX_ACCURACY_METERS", 50),
+		},
+		FaceVerification: FaceVerificationConfig{
+			Threshold: envRequiredFloat("FACE_VERIFICATION_THRESHOLD"),
 		},
 	}
 }
@@ -103,6 +111,14 @@ func (c GeofenceConfig) Validate() error {
 	return nil
 }
 
+func (c FaceVerificationConfig) Validate() error {
+	if math.IsNaN(c.Threshold) || math.IsInf(c.Threshold, 0) || c.Threshold < -1 || c.Threshold > 1 {
+		return errors.New("FACE_VERIFICATION_THRESHOLD is required and must be finite between -1 and 1")
+	}
+
+	return nil
+}
+
 func env(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -129,6 +145,20 @@ func envFloat(key string, fallback float64) float64 {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
 		return fallback
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return math.NaN()
+	}
+
+	return parsed
+}
+
+func envRequiredFloat(key string) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return math.NaN()
 	}
 
 	parsed, err := strconv.ParseFloat(value, 64)

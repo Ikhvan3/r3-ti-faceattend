@@ -23,14 +23,21 @@ type UserRepository interface {
 }
 
 type Service struct {
-	faces  Repository
-	users  UserRepository
-	models ModelRegistry
-	now    func() time.Time
+	faces                 Repository
+	users                 UserRepository
+	models                ModelRegistry
+	verificationThreshold float64
+	now                   func() time.Time
 }
 
-func NewService(faces Repository, users UserRepository, models ModelRegistry) Service {
-	return Service{faces: faces, users: users, models: models, now: time.Now}
+func NewService(faces Repository, users UserRepository, models ModelRegistry, verificationThreshold float64) Service {
+	return Service{
+		faces:                 faces,
+		users:                 users,
+		models:                models,
+		verificationThreshold: verificationThreshold,
+		now:                   time.Now,
+	}
 }
 
 func (s Service) Status(ctx context.Context, claims auth.Claims) (StatusResponse, error) {
@@ -90,6 +97,57 @@ func (s Service) Enroll(ctx context.Context, claims auth.Claims, input Enrollmen
 	return statusResponse(profile), nil
 }
 
+func (s Service) Verify(ctx context.Context, claims auth.Claims, input VerificationInput) (VerificationResponse, error) {
+	userID, err := userIDFromClaims(claims)
+	if err != nil {
+		return VerificationResponse{}, err
+	}
+	if err := s.validateActiveUser(ctx, userID); err != nil {
+		return VerificationResponse{}, err
+	}
+
+	profile, err := s.faces.FindByUserID(ctx, userID)
+	if err != nil {
+		if err == ErrProfileNotFound {
+			return VerificationResponse{}, ErrNotEnrolled
+		}
+		return VerificationResponse{}, ErrRepositoryFailure
+	}
+	if profile.Status != FaceStatusEnrolled {
+		return VerificationResponse{}, ErrNotEnrolled
+	}
+
+	model, err := s.validateVerificationInput(input, profile)
+	if err != nil {
+		return VerificationResponse{}, err
+	}
+
+	stored, err := s.validatedEmbedding(profile.Embedding, model)
+	if err != nil {
+		return VerificationResponse{}, ErrRepositoryFailure
+	}
+	candidate, err := s.validatedEmbedding(input.Embedding, model)
+	if err != nil {
+		return VerificationResponse{}, err
+	}
+	if model.NormalizeInput {
+		candidate, err = L2Normalize(candidate)
+		if err != nil {
+			return VerificationResponse{}, err
+		}
+		stored, err = L2Normalize(stored)
+		if err != nil {
+			return VerificationResponse{}, ErrRepositoryFailure
+		}
+	}
+
+	similarity, err := CosineSimilarity(candidate, stored)
+	if err != nil {
+		return VerificationResponse{}, err
+	}
+	return VerificationResponse{Verified: similarity >= s.verificationThreshold}, nil
+}
+
 func (s Service) Reset(ctx context.Context, claims auth.Claims) error {
 	userID, err := userIDFromClaims(claims)
 	if err != nil {
@@ -132,12 +190,45 @@ func (s Service) validateEnrollmentInput(input EnrollmentInput) error {
 	if len(input.Embedding) != model.Dimension {
 		return ErrInvalidDimension
 	}
-	for _, value := range input.Embedding {
+	_, err := s.validatedEmbedding(input.Embedding, model)
+	return err
+}
+
+func (s Service) validateVerificationInput(input VerificationInput, profile FaceProfile) (SupportedModel, error) {
+	modelName := strings.TrimSpace(input.EmbeddingModel)
+	modelVersion := strings.TrimSpace(input.EmbeddingVersion)
+	if modelName == "" || modelVersion == "" || len(input.Embedding) == 0 {
+		return SupportedModel{}, ErrInvalidInput
+	}
+	if modelName != strings.TrimSpace(profile.EmbeddingModel) || modelVersion != strings.TrimSpace(profile.EmbeddingVersion) {
+		return SupportedModel{}, ErrUnsupportedModel
+	}
+	model, ok := s.models.Find(modelName, modelVersion)
+	if !ok || model.Dimension < 1 {
+		return SupportedModel{}, ErrUnsupportedModel
+	}
+	if model.SimilarityMetric != SimilarityMetricCosine {
+		return SupportedModel{}, ErrUnsupportedModel
+	}
+	if len(input.Embedding) != model.Dimension {
+		return SupportedModel{}, ErrInvalidDimension
+	}
+	return model, nil
+}
+
+func (s Service) validatedEmbedding(embedding []float64, model SupportedModel) ([]float64, error) {
+	if len(embedding) == 0 {
+		return nil, ErrInvalidInput
+	}
+	if len(embedding) != model.Dimension {
+		return nil, ErrInvalidDimension
+	}
+	for _, value := range embedding {
 		if math.IsNaN(value) || math.IsInf(value, 0) {
-			return ErrInvalidInput
+			return nil, ErrInvalidInput
 		}
 	}
-	return nil
+	return append([]float64(nil), embedding...), nil
 }
 
 func userIDFromClaims(claims auth.Claims) (string, error) {

@@ -27,6 +27,22 @@ type EnrollmentInput struct {
 	EmbeddingVersion string
 }
 
+type VerificationInput struct {
+	Embedding        []float64
+	EmbeddingModel   string
+	EmbeddingVersion string
+}
+
+type VerificationResponse struct {
+	Verified bool `json:"verified"`
+}
+
+type SimilarityMetric string
+
+const (
+	SimilarityMetricCosine SimilarityMetric = "cosine"
+)
+
 type StatusResponse struct {
 	Enrolled         bool       `json:"enrolled"`
 	FaceStatus       FaceStatus `json:"face_status"`
@@ -36,9 +52,11 @@ type StatusResponse struct {
 }
 
 type SupportedModel struct {
-	Name      string
-	Version   string
-	Dimension int
+	Name             string
+	Version          string
+	Dimension        int
+	SimilarityMetric SimilarityMetric
+	NormalizeInput   bool
 }
 
 const (
@@ -49,9 +67,11 @@ const (
 
 func ProductionModelRegistry() ModelRegistry {
 	return NewModelRegistry([]SupportedModel{{
-		Name:      FaceNetModelName,
-		Version:   FaceNetModelVersion,
-		Dimension: FaceNetModelDimension,
+		Name:             FaceNetModelName,
+		Version:          FaceNetModelVersion,
+		Dimension:        FaceNetModelDimension,
+		SimilarityMetric: SimilarityMetricCosine,
+		NormalizeInput:   true,
 	}})
 }
 
