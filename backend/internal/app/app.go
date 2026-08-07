@@ -14,6 +14,7 @@ import (
 	"r3-ti-faceattend/backend/internal/auth"
 	"r3-ti-faceattend/backend/internal/config"
 	"r3-ti-faceattend/backend/internal/database"
+	"r3-ti-faceattend/backend/internal/face"
 	"r3-ti-faceattend/backend/internal/health"
 	officelocation "r3-ti-faceattend/backend/internal/location"
 	"r3-ti-faceattend/backend/internal/security"
@@ -113,6 +114,9 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			locationRepo := officelocation.NewPostgresRepository(pool)
 			locationService := officelocation.NewService(locationRepo, locationRepo, businessLocation)
 			locationHandler := officelocation.NewHandler(locationService)
+			faceRepo := face.NewPostgresRepository(pool)
+			faceService := face.NewService(faceRepo, userRepo, face.EmptyModelRegistry())
+			faceHandler := face.NewHandler(faceService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
 			}
@@ -140,6 +144,9 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/attendance/check-in", userOnly(http.HandlerFunc(attendanceHandler.CheckIn)))
 			mux.Handle("/api/v1/attendance/check-out", userOnly(http.HandlerFunc(attendanceHandler.CheckOut)))
 			mux.Handle("/api/v1/attendance/history", userOnly(http.HandlerFunc(attendanceHandler.History)))
+			mux.Handle("/api/v1/face/status", userOnly(http.HandlerFunc(faceHandler.Status)))
+			mux.Handle("/api/v1/face/enroll", userOnly(http.HandlerFunc(faceHandler.Enroll)))
+			mux.Handle("/api/v1/face/enrollment", userOnly(http.HandlerFunc(faceHandler.Enrollment)))
 		}
 	}
 
