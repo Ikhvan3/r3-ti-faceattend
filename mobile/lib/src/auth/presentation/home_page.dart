@@ -5,6 +5,11 @@ import '../../attendance/data/attendance_repository.dart';
 import '../../attendance/data/location_service.dart';
 import '../../attendance/presentation/attendance_card.dart';
 import '../../attendance/presentation/attendance_controller.dart';
+import '../../face/data/face_detector_service.dart';
+import '../../face/data/face_embedding_service.dart';
+import '../../face/data/face_repository.dart';
+import '../../face/presentation/face_enrollment_controller.dart';
+import '../../face/presentation/face_status_card.dart';
 import '../domain/user_profile.dart';
 import 'auth_controller.dart';
 import 'profile_page.dart';
@@ -40,11 +45,22 @@ class HomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: ChangeNotifierProvider<AttendanceController>(
-        create: (context) => AttendanceController(
-          context.read<AttendanceRepository>(),
-          context.read<LocationService>(),
-        )..initialize(),
+      body: MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AttendanceController>(
+            create: (context) => AttendanceController(
+              context.read<AttendanceRepository>(),
+              context.read<LocationService>(),
+            )..initialize(),
+          ),
+          ChangeNotifierProvider<FaceEnrollmentController>(
+            create: (context) => FaceEnrollmentController(
+              repository: context.read<FaceRepository>(),
+              detector: MlKitFaceDetectorService(),
+              embeddingService: TfliteFaceEmbeddingService(),
+            )..loadStatus(),
+          ),
+        ],
         child: _AttendanceHomeBody(user: user),
       ),
     );
@@ -100,6 +116,8 @@ class _AttendanceHomeBodyState extends State<_AttendanceHomeBody>
         _InfoCard(label: 'Email', value: widget.user.email),
         const SizedBox(height: 20),
         const AttendanceCard(),
+        const SizedBox(height: 20),
+        const FaceStatusCard(),
       ],
     );
   }

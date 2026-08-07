@@ -13,6 +13,10 @@ import 'src/attendance/data/attendance_repository.dart';
 import 'src/attendance/data/location_service.dart';
 import 'src/core/network/authenticated_api_client.dart';
 import 'src/config/api_config.dart';
+import 'src/face/data/face_api_client.dart';
+import 'src/face/data/face_repository.dart';
+import 'src/face/domain/face_failure.dart';
+import 'src/face/domain/face_status.dart';
 
 void main() {
   final apiConfig = ApiConfig.fromEnvironment();
@@ -35,6 +39,9 @@ void main() {
   final attendanceRepository = AttendanceRepository(
     api: HttpAttendanceApiClient(client: authenticatedClient),
   );
+  final faceRepository = FaceRepository(
+    api: HttpFaceApiClient(client: authenticatedClient),
+  );
   if (kDebugMode) {
     debugPrint('API base URL: ${apiConfig.baseUrl}');
   }
@@ -43,6 +50,7 @@ void main() {
     R3TiFaceAttendApp(
       authRepository: authRepository,
       attendanceRepository: attendanceRepository,
+      faceRepository: faceRepository,
     ),
   );
 }
@@ -51,12 +59,14 @@ class R3TiFaceAttendApp extends StatelessWidget {
   const R3TiFaceAttendApp({
     required this.authRepository,
     required this.attendanceRepository,
+    this.faceRepository = const FaceRepository(api: _UnavailableFaceApi()),
     this.locationService = const GeolocatorLocationService(),
     super.key,
   });
 
   final AuthRepository authRepository;
   final AttendanceRepository attendanceRepository;
+  final FaceRepository faceRepository;
   final LocationService locationService;
 
   @override
@@ -64,6 +74,7 @@ class R3TiFaceAttendApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         Provider<AttendanceRepository>.value(value: attendanceRepository),
+        Provider<FaceRepository>.value(value: faceRepository),
         Provider<LocationService>.value(value: locationService),
         ChangeNotifierProvider<AuthController>(
           create: (_) => AuthController(authRepository)..initialize(),
@@ -81,6 +92,38 @@ class R3TiFaceAttendApp extends StatelessWidget {
         ),
         home: const AuthGate(),
       ),
+    );
+  }
+}
+
+class _UnavailableFaceApi implements FaceApi {
+  const _UnavailableFaceApi();
+
+  @override
+  Future<FaceStatus> getStatus() {
+    throw const FaceFailure(
+      FaceFailureKind.apiUnavailable,
+      'Status wajah belum tersedia.',
+    );
+  }
+
+  @override
+  Future<FaceStatus> enroll({
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  }) {
+    throw const FaceFailure(
+      FaceFailureKind.apiUnavailable,
+      'Enrollment wajah belum tersedia.',
+    );
+  }
+
+  @override
+  Future<void> resetEnrollment() {
+    throw const FaceFailure(
+      FaceFailureKind.apiUnavailable,
+      'Reset wajah belum tersedia.',
     );
   }
 }
