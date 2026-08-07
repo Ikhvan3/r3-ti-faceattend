@@ -21,11 +21,13 @@ class AuthController extends ChangeNotifier {
   UserProfile? _user;
   String? _errorMessage;
   bool _isSubmitting = false;
+  bool _sessionRestoreFailed = false;
 
   AuthControllerStatus get status => _status;
   UserProfile? get user => _user;
   String? get errorMessage => _errorMessage;
   bool get isSubmitting => _isSubmitting;
+  bool get sessionRestoreFailed => _sessionRestoreFailed;
 
   Future<void> initialize() async {
     if (_status == AuthControllerStatus.loading) {
@@ -33,21 +35,32 @@ class AuthController extends ChangeNotifier {
     }
 
     _setState(status: AuthControllerStatus.loading, errorMessage: null);
-    final restoredUser = await _repository.restoreSession();
-    if (restoredUser == null) {
+    try {
+      final restoredUser = await _repository.restoreSession();
+      if (restoredUser == null) {
+        _sessionRestoreFailed = false;
+        _setState(
+          status: AuthControllerStatus.unauthenticated,
+          user: null,
+          errorMessage: null,
+        );
+        return;
+      }
+
+      _sessionRestoreFailed = false;
       _setState(
-        status: AuthControllerStatus.unauthenticated,
-        user: null,
+        status: AuthControllerStatus.authenticated,
+        user: restoredUser,
         errorMessage: null,
       );
-      return;
+    } on AuthFailure catch (error) {
+      _sessionRestoreFailed = true;
+      _setState(
+        status: AuthControllerStatus.failure,
+        user: null,
+        errorMessage: error.message,
+      );
     }
-
-    _setState(
-      status: AuthControllerStatus.authenticated,
-      user: restoredUser,
-      errorMessage: null,
-    );
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -56,6 +69,7 @@ class AuthController extends ChangeNotifier {
     }
 
     _isSubmitting = true;
+    _sessionRestoreFailed = false;
     _setState(status: AuthControllerStatus.loading, errorMessage: null);
 
     try {
@@ -85,6 +99,7 @@ class AuthController extends ChangeNotifier {
     }
 
     _isSubmitting = true;
+    _sessionRestoreFailed = false;
     _setState(status: AuthControllerStatus.loading, errorMessage: null);
     await _repository.logout();
     _isSubmitting = false;
@@ -102,6 +117,7 @@ class AuthController extends ChangeNotifier {
 
     _errorMessage = null;
     if (_status == AuthControllerStatus.failure) {
+      _sessionRestoreFailed = false;
       _status = AuthControllerStatus.unauthenticated;
     }
     notifyListeners();

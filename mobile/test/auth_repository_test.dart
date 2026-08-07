@@ -153,6 +153,51 @@ void main() {
     expect(storage.refreshToken, isNull);
   });
 
+  test('refresh gagal sementara tidak membersihkan token', () async {
+    final api = FakeAuthApi()..refreshError = apiUnavailableFailure;
+    final storage = FakeTokenStorage()
+      ..accessToken = 'old-access'
+      ..refreshToken = 'old-refresh';
+    final repository = AuthRepository(api: api, tokenStorage: storage);
+
+    await expectLater(repository.refreshSession(), throwsA(isA<AuthFailure>()));
+    expect(storage.accessToken, 'old-access');
+    expect(storage.refreshToken, 'old-refresh');
+  });
+
+  test('restore gagal sementara mempertahankan token', () async {
+    final api = FakeAuthApi()..meError = apiUnavailableFailure;
+    final storage = FakeTokenStorage()
+      ..accessToken = 'access-token'
+      ..refreshToken = 'refresh-token';
+    final repository = AuthRepository(api: api, tokenStorage: storage);
+
+    await expectLater(repository.restoreSession(), throwsA(isA<AuthFailure>()));
+
+    expect(storage.accessToken, 'access-token');
+    expect(storage.refreshToken, 'refresh-token');
+  });
+
+  test('login akun berbeda mengganti token lama', () async {
+    final api = FakeAuthApi()
+      ..loginResult = userTokens(access: 'access-b', refresh: 'refresh-b')
+      ..meResult = userProfile(name: 'Pegawai B');
+    final storage = FakeTokenStorage()
+      ..accessToken = 'access-a'
+      ..refreshToken = 'refresh-a';
+    final repository = AuthRepository(api: api, tokenStorage: storage);
+
+    await repository.logout();
+    final user = await repository.login(
+      email: 'pegawai.b@example.test',
+      password: 'password',
+    );
+
+    expect(user.name, 'Pegawai B');
+    expect(storage.accessToken, 'access-b');
+    expect(storage.refreshToken, 'refresh-b');
+  });
+
   test('logout membersihkan token walaupun API gagal', () async {
     final api = FakeAuthApi()..logoutError = Exception('network');
     final storage = FakeTokenStorage()

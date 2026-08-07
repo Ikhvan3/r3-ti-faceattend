@@ -64,6 +64,7 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
   final TokenStorage _tokenStorage;
   final AuthApi _authApi;
   final Duration _timeout;
+  Future<String>? _refreshInFlight;
 
   @override
   Future<AuthenticatedApiResponse> send({
@@ -92,7 +93,7 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
       return first;
     }
 
-    final rotatedAccessToken = await _refreshOnce();
+    final rotatedAccessToken = await _refreshSingleFlight(accessToken);
     return _sendOnce(
       method: method,
       path: path,
@@ -100,6 +101,35 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
       queryParameters: queryParameters,
       body: body,
     );
+  }
+
+  Future<String> _refreshSingleFlight(String tokenUsedByRequest) {
+    final inFlight = _refreshInFlight;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final future = _refreshIfStillCurrent(tokenUsedByRequest);
+    _refreshInFlight = future;
+    unawaited(
+      future.then<void>((_) {}, onError: (_) {}).whenComplete(() {
+        if (identical(_refreshInFlight, future)) {
+          _refreshInFlight = null;
+        }
+      }),
+    );
+    return future;
+  }
+
+  Future<String> _refreshIfStillCurrent(String tokenUsedByRequest) async {
+    final currentAccessToken = await _tokenStorage.readAccessToken();
+    if (currentAccessToken != null &&
+        currentAccessToken.isNotEmpty &&
+        currentAccessToken != tokenUsedByRequest) {
+      return currentAccessToken;
+    }
+
+    return _refreshOnce();
   }
 
   Future<AuthenticatedApiResponse> _sendOnce({
@@ -170,11 +200,30 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
       final tokens = await _authApi.refresh(refreshToken: refreshToken);
       await _tokenStorage.saveTokens(tokens);
       return tokens.accessToken;
-    } on AuthFailure {
-      await _tokenStorage.clearTokens();
+    } on AuthFailure catch (error) {
+      if (isAuthoritativeSessionFailure(error)) {
+        await _tokenStorage.clearTokens();
+        throw const AuthenticatedApiFailure(
+          AuthenticatedApiFailureKind.sessionExpired,
+          'Session berakhir. Silakan login kembali.',
+        );
+      }
+      if (error.kind == AuthFailureKind.requestTimeout) {
+        throw const AuthenticatedApiFailure(
+          AuthenticatedApiFailureKind.requestTimeout,
+          'Koneksi terlalu lambat. Silakan coba lagi.',
+        );
+      }
+      if (error.kind == AuthFailureKind.apiUnavailable ||
+          error.kind == AuthFailureKind.internalError) {
+        throw const AuthenticatedApiFailure(
+          AuthenticatedApiFailureKind.apiUnavailable,
+          'Layanan belum tersedia. Pastikan backend aktif dan perangkat terhubung.',
+        );
+      }
       throw const AuthenticatedApiFailure(
-        AuthenticatedApiFailureKind.sessionExpired,
-        'Session berakhir. Silakan login ulang.',
+        AuthenticatedApiFailureKind.malformedResponse,
+        'Respons backend tidak dapat dibaca.',
       );
     }
   }
