@@ -1,3 +1,4 @@
+import '../domain/face_attendance_grant.dart';
 import '../domain/face_status.dart';
 import '../domain/face_verification_result.dart';
 import 'face_api_client.dart';
@@ -33,6 +34,20 @@ class FaceRepository {
     required String embeddingVersion,
   }) {
     return _api.verify(
+      embedding: embedding,
+      embeddingModel: embeddingModel,
+      embeddingVersion: embeddingVersion,
+    );
+  }
+
+  Future<FaceAttendanceGrant> verifyForAttendance({
+    required String purpose,
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  }) {
+    return _api.verifyForAttendance(
+      purpose: purpose,
       embedding: embedding,
       embeddingModel: embeddingModel,
       embeddingVersion: embeddingVersion,

@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../face/data/face_detector_service.dart';
+import '../../face/data/face_embedding_service.dart';
+import '../../face/data/face_repository.dart';
+import '../../face/presentation/face_liveness_controller.dart';
+import '../../face/presentation/face_liveness_page.dart';
+import '../domain/attendance_failure.dart';
 import '../domain/attendance_models.dart';
 import 'attendance_controller.dart';
 import 'attendance_formatters.dart';
@@ -187,7 +193,9 @@ class _ActionButtons extends StatelessWidget {
     }
 
     final controller = context.read<AttendanceController>();
-    await controller.checkIn();
+    await controller.checkIn(
+      () => _openAttendanceLiveness(context, 'CHECK_IN'),
+    );
     if (!context.mounted) {
       return;
     }
@@ -207,7 +215,9 @@ class _ActionButtons extends StatelessWidget {
     }
 
     final controller = context.read<AttendanceController>();
-    await controller.checkOut();
+    await controller.checkOut(
+      () => _openAttendanceLiveness(context, 'CHECK_OUT'),
+    );
     if (!context.mounted) {
       return;
     }
@@ -252,6 +262,40 @@ class _ActionButtons extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<String> _openAttendanceLiveness(
+    BuildContext context,
+    String purpose,
+  ) async {
+    final grant = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) {
+          final detector = MlKitFaceDetectorService.liveness();
+          return MultiProvider(
+            providers: [
+              Provider<FaceDetectorService>.value(value: detector),
+              ChangeNotifierProvider<FaceLivenessController>(
+                create: (_) => FaceLivenessController(
+                  repository: context.read<FaceRepository>(),
+                  detector: detector,
+                  embeddingService: TfliteFaceEmbeddingService(),
+                  attendancePurpose: purpose,
+                ),
+              ),
+            ],
+            child: const FaceLivenessPage(),
+          );
+        },
+      ),
+    );
+    if (grant == null || grant.isEmpty) {
+      throw const AttendanceFailure(
+        AttendanceFailureKind.faceVerificationRejected,
+        'Verifikasi keaktifan gagal.',
+      );
+    }
+    return grant;
   }
 }
 

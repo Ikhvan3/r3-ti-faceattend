@@ -3,6 +3,8 @@ package attendance
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -20,7 +22,9 @@ type AttendanceRepository interface {
 	Today(ctx context.Context, userID string, attendanceDate time.Time) (TodayData, error)
 	CurrentOfficeLocation(ctx context.Context, userID string, attendanceDate time.Time) (AttendanceLocationTarget, error)
 	CheckIn(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence) (AttendanceRecord, error)
+	CheckInWithGrant(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence, grantHash string) (AttendanceRecord, error)
 	CheckOut(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, evidence AttendanceLocationEvidence) (AttendanceRecord, error)
+	CheckOutWithGrant(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, evidence AttendanceLocationEvidence, grantHash string) (AttendanceRecord, error)
 	ListHistory(ctx context.Context, userID string, filter HistoryFilter) ([]HistoryRow, error)
 	CountHistory(ctx context.Context, userID string) (int, error)
 }
@@ -69,12 +73,20 @@ func (s Service) CheckIn(ctx context.Context, claims auth.Claims, request Attend
 		return DailyStatus{}, ErrAlreadyCheckedIn
 	}
 
-	evidence, err := s.locationEvidence(ctx, userID, attendanceDate, request)
+	evidence, err := s.locationEvidence(ctx, userID, attendanceDate, AttendanceLocationRequest{
+		Latitude:       request.Latitude,
+		Longitude:      request.Longitude,
+		AccuracyMeters: request.AccuracyMeters,
+	})
+	if err != nil {
+		return DailyStatus{}, err
+	}
+	grantHash, err := verificationGrantHash(request.VerificationGrant)
 	if err != nil {
 		return DailyStatus{}, err
 	}
 
-	record, err := s.repo.CheckIn(ctx, userID, attendanceDate, s.now().UTC(), newUUID(), evidence)
+	record, err := s.repo.CheckInWithGrant(ctx, userID, attendanceDate, s.now().UTC(), newUUID(), evidence, grantHash)
 	if err != nil {
 		return DailyStatus{}, mapRepositoryError(err)
 	}
@@ -101,12 +113,20 @@ func (s Service) CheckOut(ctx context.Context, claims auth.Claims, request Atten
 		return DailyStatus{}, ErrAlreadyCheckedOut
 	}
 
-	evidence, err := s.locationEvidence(ctx, userID, attendanceDate, request)
+	evidence, err := s.locationEvidence(ctx, userID, attendanceDate, AttendanceLocationRequest{
+		Latitude:       request.Latitude,
+		Longitude:      request.Longitude,
+		AccuracyMeters: request.AccuracyMeters,
+	})
+	if err != nil {
+		return DailyStatus{}, err
+	}
+	grantHash, err := verificationGrantHash(request.VerificationGrant)
 	if err != nil {
 		return DailyStatus{}, err
 	}
 
-	record, err := s.repo.CheckOut(ctx, userID, attendanceDate, s.now().UTC(), evidence)
+	record, err := s.repo.CheckOutWithGrant(ctx, userID, attendanceDate, s.now().UTC(), evidence, grantHash)
 	if err != nil {
 		return DailyStatus{}, mapRepositoryError(err)
 	}
@@ -291,11 +311,19 @@ func formatDate(value time.Time) string {
 
 func mapRepositoryError(err error) error {
 	switch err {
-	case ErrInactiveAccount, ErrScheduleNotFound, ErrInactiveSchedule, ErrAlreadyCheckedIn, ErrNotCheckedIn, ErrAlreadyCheckedOut, ErrLocationNotFound, ErrInactiveLocation, ErrOutsideGeofence, ErrPoorAccuracy, ErrInvalidInput:
+	case ErrInactiveAccount, ErrScheduleNotFound, ErrInactiveSchedule, ErrAlreadyCheckedIn, ErrNotCheckedIn, ErrAlreadyCheckedOut, ErrLocationNotFound, ErrInactiveLocation, ErrOutsideGeofence, ErrPoorAccuracy, ErrInvalidInput, ErrMissingGrant, ErrInvalidGrant, ErrExpiredGrant, ErrConsumedGrant:
 		return err
 	default:
 		return ErrInternal
 	}
+}
+
+func verificationGrantHash(token string) (string, error) {
+	if token == "" {
+		return "", ErrMissingGrant
+	}
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func newUUID() string {

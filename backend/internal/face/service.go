@@ -3,6 +3,9 @@ package face
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"strings"
@@ -16,6 +19,7 @@ type Repository interface {
 	FindByUserID(ctx context.Context, userID string) (FaceProfile, error)
 	Create(ctx context.Context, profile FaceProfile) (FaceProfile, error)
 	DeleteByUserID(ctx context.Context, userID string) error
+	CreateVerificationGrant(ctx context.Context, grant VerificationGrant) error
 }
 
 type UserRepository interface {
@@ -27,15 +31,17 @@ type Service struct {
 	users                 UserRepository
 	models                ModelRegistry
 	verificationThreshold float64
+	attendanceGrantTTL    time.Duration
 	now                   func() time.Time
 }
 
-func NewService(faces Repository, users UserRepository, models ModelRegistry, verificationThreshold float64) Service {
+func NewService(faces Repository, users UserRepository, models ModelRegistry, verificationThreshold float64, attendanceGrantTTL time.Duration) Service {
 	return Service{
 		faces:                 faces,
 		users:                 users,
 		models:                models,
 		verificationThreshold: verificationThreshold,
+		attendanceGrantTTL:    attendanceGrantTTL,
 		now:                   time.Now,
 	}
 }
@@ -98,54 +104,102 @@ func (s Service) Enroll(ctx context.Context, claims auth.Claims, input Enrollmen
 }
 
 func (s Service) Verify(ctx context.Context, claims auth.Claims, input VerificationInput) (VerificationResponse, error) {
-	userID, err := userIDFromClaims(claims)
+	verified, err := s.verifyMatch(ctx, claims, input)
 	if err != nil {
 		return VerificationResponse{}, err
 	}
+	return VerificationResponse{Verified: verified}, nil
+}
+
+func (s Service) VerifyForAttendance(ctx context.Context, claims auth.Claims, input AttendanceVerificationInput) (AttendanceVerificationResponse, error) {
+	if input.Purpose != PurposeCheckIn && input.Purpose != PurposeCheckOut {
+		return AttendanceVerificationResponse{}, ErrInvalidInput
+	}
+	verified, err := s.verifyMatch(ctx, claims, VerificationInput{
+		Embedding:        input.Embedding,
+		EmbeddingModel:   input.EmbeddingModel,
+		EmbeddingVersion: input.EmbeddingVersion,
+	})
+	if err != nil {
+		return AttendanceVerificationResponse{}, err
+	}
+	if !verified {
+		return AttendanceVerificationResponse{}, ErrVerificationMismatch
+	}
+
+	userID, err := userIDFromClaims(claims)
+	if err != nil {
+		return AttendanceVerificationResponse{}, err
+	}
+	token, tokenHash, err := newGrantToken()
+	if err != nil {
+		return AttendanceVerificationResponse{}, ErrRepositoryFailure
+	}
+	now := s.now().UTC()
+	expiresAt := now.Add(s.attendanceGrantTTL)
+	if err := s.faces.CreateVerificationGrant(ctx, VerificationGrant{
+		ID:        newUUID(),
+		UserID:    userID,
+		Purpose:   input.Purpose,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
+	}); err != nil {
+		return AttendanceVerificationResponse{}, ErrRepositoryFailure
+	}
+
+	return AttendanceVerificationResponse{VerificationGrant: token, ExpiresAt: expiresAt}, nil
+}
+
+func (s Service) verifyMatch(ctx context.Context, claims auth.Claims, input VerificationInput) (bool, error) {
+	userID, err := userIDFromClaims(claims)
+	if err != nil {
+		return false, err
+	}
 	if err := s.validateActiveUser(ctx, userID); err != nil {
-		return VerificationResponse{}, err
+		return false, err
 	}
 
 	profile, err := s.faces.FindByUserID(ctx, userID)
 	if err != nil {
 		if err == ErrProfileNotFound {
-			return VerificationResponse{}, ErrNotEnrolled
+			return false, ErrNotEnrolled
 		}
-		return VerificationResponse{}, ErrRepositoryFailure
+		return false, ErrRepositoryFailure
 	}
 	if profile.Status != FaceStatusEnrolled {
-		return VerificationResponse{}, ErrNotEnrolled
+		return false, ErrNotEnrolled
 	}
 
 	model, err := s.validateVerificationInput(input, profile)
 	if err != nil {
-		return VerificationResponse{}, err
+		return false, err
 	}
 
 	stored, err := s.validatedEmbedding(profile.Embedding, model)
 	if err != nil {
-		return VerificationResponse{}, ErrRepositoryFailure
+		return false, ErrRepositoryFailure
 	}
 	candidate, err := s.validatedEmbedding(input.Embedding, model)
 	if err != nil {
-		return VerificationResponse{}, err
+		return false, err
 	}
 	if model.NormalizeInput {
 		candidate, err = L2Normalize(candidate)
 		if err != nil {
-			return VerificationResponse{}, err
+			return false, err
 		}
 		stored, err = L2Normalize(stored)
 		if err != nil {
-			return VerificationResponse{}, ErrRepositoryFailure
+			return false, ErrRepositoryFailure
 		}
 	}
 
 	similarity, err := CosineSimilarity(candidate, stored)
 	if err != nil {
-		return VerificationResponse{}, err
+		return false, err
 	}
-	return VerificationResponse{Verified: similarity >= s.verificationThreshold}, nil
+	return similarity >= s.verificationThreshold, nil
 }
 
 func (s Service) Reset(ctx context.Context, claims auth.Claims) error {
@@ -264,4 +318,14 @@ func newUUID() string {
 		b[8:10],
 		b[10:16],
 	)
+}
+
+func newGrantToken() (string, string, error) {
+	var b [32]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", "", err
+	}
+	token := base64.RawURLEncoding.EncodeToString(b[:])
+	sum := sha256.Sum256([]byte(token))
+	return token, hex.EncodeToString(sum[:]), nil
 }

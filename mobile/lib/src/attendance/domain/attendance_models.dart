@@ -83,11 +83,12 @@ class AttendanceLocationPayload {
   final double longitude;
   final double accuracyMeters;
 
-  Map<String, Object?> toJson() {
+  Map<String, Object?> toJson({required String verificationGrant}) {
     return <String, Object?>{
       'latitude': latitude,
       'longitude': longitude,
       'accuracy_meters': accuracyMeters,
+      'verification_grant': verificationGrant,
     };
   }
 }

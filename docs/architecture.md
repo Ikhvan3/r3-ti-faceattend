@@ -293,6 +293,49 @@ meningkatkan ketahanan terhadap foto statis, tetapi belum production-grade dan
 belum cukup untuk menahan replay video, injection kamera, deepfake, atau spoof
 perangkat tingkat lanjut.
 
+## Attendance Verification Orchestrator
+
+Tahap orchestrator menggabungkan GPS/geofence, active liveness prototype,
+backend face verification, dan check-in/check-out melalui verification grant
+server-side.
+
+Alur mobile:
+
+```text
+Tap Check-in/Check-out
+-> ambil GPS perangkat
+-> active liveness lokal
+-> liveness PASS
+-> collect candidate embedding sementara
+-> POST /api/v1/face/verify-for-attendance
+-> terima verification grant
+-> POST /api/v1/attendance/check-in atau check-out dengan GPS + grant
+-> grant dibuang dari memory
+-> refresh today/history
+```
+
+Backend tidak mempercayai boolean `face_verified`, `inside_geofence`,
+threshold, similarity, `user_id`, atau expiry dari Flutter. Identity matching
+tetap otoritatif di backend melalui face profile enrolled dan threshold
+backend. Active liveness saat ini adalah prototype client-side
+challenge-response; backend tidak dapat membuktikan liveness dan tidak boleh
+diklaim sebagai production-grade PAD atau anti-spoof.
+
+Verification grant disimpan di PostgreSQL pada tabel
+`face_verification_grants`. Raw token dibuat dengan random cryptographically
+secure, dikirim satu kali ke Flutter, lalu hanya hash SHA-256 yang disimpan di
+database. Grant terikat ke `user_id` dan `purpose` (`CHECK_IN` atau
+`CHECK_OUT`), memiliki TTL dari `FACE_ATTENDANCE_GRANT_TTL_SECONDS`, dan hanya
+boleh dipakai sekali. Raw token, embedding, image, face crop, similarity score,
+threshold, dan stored template tidak dicatat ke log.
+
+Mutasi attendance dan konsumsi grant dilakukan dalam transaksi PostgreSQL.
+Repository attendance mengunci row grant dengan `FOR UPDATE`, memvalidasi user,
+purpose, expiry, dan `consumed_at`, melakukan insert/update attendance, lalu
+mengisi `consumed_at` sebelum commit. Jika mutasi attendance gagal, transaksi
+rollback dan grant tetap belum consumed. Dua request paralel dengan grant yang
+sama tidak boleh sama-sama berhasil.
+
 ## Prinsip Teknis
 
 - Server time menjadi sumber waktu absensi yang otoritatif.

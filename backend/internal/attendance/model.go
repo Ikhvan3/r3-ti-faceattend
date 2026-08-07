@@ -86,9 +86,10 @@ type HistoryFilter struct {
 }
 
 type AttendanceLocationRequest struct {
-	Latitude       float64
-	Longitude      float64
-	AccuracyMeters float64
+	Latitude          float64
+	Longitude         float64
+	AccuracyMeters    float64
+	VerificationGrant string
 }
 
 type AttendanceLocationTarget struct {

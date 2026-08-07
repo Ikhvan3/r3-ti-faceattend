@@ -225,6 +225,7 @@ func protectedHandler(service *fakeHTTPService, claims auth.Claims) http.Handler
 	mux.HandleFunc("/api/v1/face/status", handler.Status)
 	mux.HandleFunc("/api/v1/face/enroll", handler.Enroll)
 	mux.HandleFunc("/api/v1/face/verify", handler.Verify)
+	mux.HandleFunc("/api/v1/face/verify-for-attendance", handler.VerifyForAttendance)
 	mux.HandleFunc("/api/v1/face/enrollment", handler.Enrollment)
 	return auth.Authenticate(fakeVerifier{claims: claims}, auth.RequireRole(user.RoleUser, mux))
 }
@@ -249,6 +250,7 @@ type fakeHTTPService struct {
 	resetErr              error
 	lastInput             EnrollmentInput
 	lastVerificationInput VerificationInput
+	lastAttendanceInput   AttendanceVerificationInput
 }
 
 func newFakeHTTPService() *fakeHTTPService {
@@ -280,6 +282,17 @@ func (s *fakeHTTPService) Verify(_ context.Context, _ auth.Claims, input Verific
 		return VerificationResponse{}, s.verifyErr
 	}
 	return s.verifyResult, nil
+}
+
+func (s *fakeHTTPService) VerifyForAttendance(_ context.Context, _ auth.Claims, input AttendanceVerificationInput) (AttendanceVerificationResponse, error) {
+	s.lastAttendanceInput = input
+	if s.verifyErr != nil {
+		return AttendanceVerificationResponse{}, s.verifyErr
+	}
+	return AttendanceVerificationResponse{
+		VerificationGrant: "valid-grant",
+		ExpiresAt:         time.Date(2026, 8, 7, 1, 2, 0, 0, time.UTC),
+	}, nil
 }
 
 func (s *fakeHTTPService) Reset(_ context.Context, _ auth.Claims) error {

@@ -30,6 +30,7 @@ class FaceLivenessController extends ChangeNotifier {
       sensorDegrees: 0,
     ),
     LivenessConfig config = const LivenessConfig(),
+    String? attendancePurpose,
     Random? random,
     LivenessNow? now,
   }) : _repository = repository,
@@ -37,6 +38,7 @@ class FaceLivenessController extends ChangeNotifier {
        _embeddingService = embeddingService,
        _cameraOrientation = cameraOrientation,
        _config = config,
+       _attendancePurpose = attendancePurpose,
        _random = random ?? Random.secure(),
        _now = now ?? DateTime.now,
        _sampleCollector = FaceSampleCollector(
@@ -50,6 +52,7 @@ class FaceLivenessController extends ChangeNotifier {
   final FaceSampleCollector _sampleCollector;
   final FaceCameraOrientation _cameraOrientation;
   final LivenessConfig _config;
+  final String? _attendancePurpose;
   final Random _random;
   final LivenessNow _now;
 
@@ -192,8 +195,28 @@ class FaceLivenessController extends ChangeNotifier {
     }
 
     try {
+      final embedding = _sampleCollector.aggregateSamples(samples);
+      final purpose = _attendancePurpose;
+      if (purpose != null) {
+        final grant = await _repository.verifyForAttendance(
+          purpose: purpose,
+          embedding: embedding,
+          embeddingModel: FaceModelConfig.identifier,
+          embeddingVersion: FaceModelConfig.version,
+        );
+        _setState(
+          _state.copyWith(
+            status: LivenessResultStatus.success,
+            message: 'Verifikasi wajah berhasil.',
+            verified: true,
+            verificationGrant: grant.verificationGrant,
+          ),
+        );
+        return;
+      }
+
       final result = await _repository.verify(
-        embedding: _sampleCollector.aggregateSamples(samples),
+        embedding: embedding,
         embeddingModel: FaceModelConfig.identifier,
         embeddingVersion: FaceModelConfig.version,
       );

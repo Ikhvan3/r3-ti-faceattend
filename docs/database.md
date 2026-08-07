@@ -461,3 +461,30 @@ model backend. Migration tetap memakai `DOUBLE PRECISION[]` agar tidak mengubah
 schema `000006`; jika nanti backend membutuhkan similarity search, migration
 lanjutan dapat mengubah storage ke tipe `vector(128)` setelah extension
 `pgvector` diverifikasi tersedia.
+
+## Face Verification Grants
+
+Migration `000007_create_face_verification_grants` menambahkan tabel
+`face_verification_grants` untuk grant verifikasi wajah attendance.
+
+Kolom:
+
+- `id UUID PRIMARY KEY`
+- `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+- `purpose VARCHAR(20) NOT NULL`
+- `token_hash TEXT NOT NULL`
+- `expires_at TIMESTAMPTZ NOT NULL`
+- `consumed_at TIMESTAMPTZ NULL`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Constraint dan index:
+
+- `purpose` hanya `CHECK_IN` atau `CHECK_OUT`.
+- `token_hash` unik dan tidak boleh kosong.
+- `expires_at` harus setelah `created_at`.
+- Index `(user_id, purpose, created_at DESC)` untuk lookup grant user.
+- Partial index `(token_hash, user_id, purpose)` untuk grant aktif yang belum
+  consumed.
+
+Tabel ini tidak menyimpan raw grant token, raw image, face crop, candidate
+embedding, similarity score, threshold, atau stored face template.

@@ -4,6 +4,7 @@ import 'package:r3_ti_faceattend/src/face/data/face_api_client.dart';
 import 'package:r3_ti_faceattend/src/face/data/face_detector_service.dart';
 import 'package:r3_ti_faceattend/src/face/data/face_embedding_service.dart';
 import 'package:r3_ti_faceattend/src/face/domain/face_detection_result.dart';
+import 'package:r3_ti_faceattend/src/face/domain/face_attendance_grant.dart';
 import 'package:r3_ti_faceattend/src/face/domain/face_failure.dart';
 import 'package:r3_ti_faceattend/src/face/domain/face_model_config.dart';
 import 'package:r3_ti_faceattend/src/face/domain/face_status.dart';
@@ -29,17 +30,25 @@ class FakeFaceApi implements FaceApi {
     this.enrollError,
     this.verifyError,
     this.verifyResult = const FaceVerificationResult(verified: true),
+    FaceAttendanceGrant? attendanceGrant,
     this.resetError,
-  });
+  }) : attendanceGrant =
+           attendanceGrant ??
+           FaceAttendanceGrant(
+             verificationGrant: 'valid-grant',
+             expiresAt: DateTime(2026, 8, 7, 1, 2),
+           );
 
   FaceStatus status;
   FaceFailure? loadError;
   FaceFailure? enrollError;
   FaceFailure? verifyError;
   FaceVerificationResult verifyResult;
+  FaceAttendanceGrant attendanceGrant;
   FaceFailure? resetError;
   int enrollCount = 0;
   int verifyCount = 0;
+  int verifyForAttendanceCount = 0;
   int resetCount = 0;
   List<double>? lastEmbedding;
   String? lastEmbeddingModel;
@@ -87,6 +96,24 @@ class FakeFaceApi implements FaceApi {
       throw error;
     }
     return verifyResult;
+  }
+
+  @override
+  Future<FaceAttendanceGrant> verifyForAttendance({
+    required String purpose,
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  }) async {
+    verifyForAttendanceCount += 1;
+    lastEmbedding = embedding;
+    lastEmbeddingModel = embeddingModel;
+    lastEmbeddingVersion = embeddingVersion;
+    final error = verifyError;
+    if (error != null) {
+      throw error;
+    }
+    return attendanceGrant;
   }
 
   @override

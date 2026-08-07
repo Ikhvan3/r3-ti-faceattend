@@ -46,7 +46,7 @@ void main() {
     );
     await controller.initialize();
 
-    final future = controller.checkIn();
+    final future = controller.checkIn(validGrant);
     expect(controller.status, AttendanceControllerStatus.actionLoading);
     api.todayResult = attendanceToday(state: AttendanceState.checkedIn);
     api.actionCompleter?.complete();
@@ -70,7 +70,7 @@ void main() {
     );
     await controller.initialize();
 
-    await controller.checkIn();
+    await controller.checkIn(validGrant);
 
     expect(controller.status, AttendanceControllerStatus.loaded);
     expect(controller.today?.state, AttendanceState.checkedIn);
@@ -87,7 +87,7 @@ void main() {
     await controller.initialize();
     api.todayResult = attendanceToday(state: AttendanceState.completed);
 
-    await controller.checkOut();
+    await controller.checkOut(validGrant);
 
     expect(controller.today?.state, AttendanceState.completed);
   });
@@ -100,8 +100,8 @@ void main() {
     );
     await controller.initialize();
 
-    final first = controller.checkIn();
-    final second = controller.checkOut();
+    final first = controller.checkIn(validGrant);
+    final second = controller.checkOut(validGrant);
     api.actionCompleter?.complete();
     await Future.wait(<Future<void>>[first, second]);
 
@@ -148,13 +148,10 @@ void main() {
     );
     await controller.initialize();
 
-    await controller.checkIn();
+    await controller.checkIn(validGrant);
 
     expect(controller.status, AttendanceControllerStatus.failure);
-    expect(
-      controller.errorMessage,
-      'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
-    );
+    expect(controller.errorMessage, 'Lokasi belum dapat diperoleh.');
     expect(api.checkInCalls, 0);
   });
 
@@ -169,7 +166,7 @@ void main() {
     );
     await controller.initialize();
 
-    await controller.checkIn();
+    await controller.checkIn(validGrant);
 
     expect(locationService.requestPermissionCalls, 1);
     expect(api.checkInCalls, 1);
@@ -185,7 +182,7 @@ void main() {
     );
     await controller.initialize();
 
-    await controller.checkIn();
+    await controller.checkIn(validGrant);
 
     expect(
       controller.errorMessage,
@@ -204,12 +201,11 @@ void main() {
     );
     await controller.initialize();
 
-    await controller.checkIn();
+    await controller.checkIn(validGrant);
 
-    expect(
-      controller.errorMessage,
-      'GPS belum mendapatkan lokasi terbaru. Coba lagi di area terbuka.',
-    );
+    expect(controller.errorMessage, 'Lokasi belum dapat diperoleh.');
     expect(api.checkInCalls, 0);
   });
 }
+
+Future<String> validGrant() async => 'valid-grant';

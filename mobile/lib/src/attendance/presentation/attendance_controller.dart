@@ -17,6 +17,8 @@ enum AttendanceControllerStatus {
 
 enum AttendanceAction { checkIn, checkOut, refresh }
 
+typedef AttendanceVerificationGrantLoader = Future<String> Function();
+
 class AttendanceController extends ChangeNotifier {
   AttendanceController(this._repository, this._locationService);
 
@@ -55,12 +57,16 @@ class AttendanceController extends ChangeNotifier {
     await _load(showInitialLoading: _today == null, refreshing: _today != null);
   }
 
-  Future<void> checkIn() async {
-    await _runAction(AttendanceAction.checkIn, _repository.checkIn);
+  Future<void> checkIn(AttendanceVerificationGrantLoader loadGrant) async {
+    await _runAction(AttendanceAction.checkIn, loadGrant, _repository.checkIn);
   }
 
-  Future<void> checkOut() async {
-    await _runAction(AttendanceAction.checkOut, _repository.checkOut);
+  Future<void> checkOut(AttendanceVerificationGrantLoader loadGrant) async {
+    await _runAction(
+      AttendanceAction.checkOut,
+      loadGrant,
+      _repository.checkOut,
+    );
   }
 
   void clearError() {
@@ -100,7 +106,11 @@ class AttendanceController extends ChangeNotifier {
 
   Future<void> _runAction(
     AttendanceAction action,
-    Future<AttendanceToday> Function(AttendanceLocationPayload location)
+    AttendanceVerificationGrantLoader loadGrant,
+    Future<AttendanceToday> Function(
+      AttendanceLocationPayload location, {
+      required String verificationGrant,
+    })
     operation,
   ) async {
     if (_status == AttendanceControllerStatus.actionLoading || _isRefreshing) {
@@ -115,7 +125,8 @@ class AttendanceController extends ChangeNotifier {
 
     try {
       final location = await _currentLocationPayload();
-      _today = await operation(location);
+      final verificationGrant = await loadGrant();
+      _today = await operation(location, verificationGrant: verificationGrant);
       _today = await _repository.loadToday();
       _status = AttendanceControllerStatus.loaded;
     } on AttendanceFailure catch (error) {
@@ -150,6 +161,8 @@ class AttendanceController extends ChangeNotifier {
       case AttendanceFailureKind.poorAccuracy:
       case AttendanceFailureKind.locationAssignmentMissing:
       case AttendanceFailureKind.outsideGeofence:
+      case AttendanceFailureKind.faceVerificationRejected:
+      case AttendanceFailureKind.faceVerificationExpired:
       case AttendanceFailureKind.scheduleUnavailable:
       case AttendanceFailureKind.accountForbidden:
       case AttendanceFailureKind.malformedResponse:
@@ -168,7 +181,7 @@ class AttendanceController extends ChangeNotifier {
     if (!await _locationService.isLocationServiceEnabled()) {
       throw const AttendanceFailure(
         AttendanceFailureKind.locationServiceDisabled,
-        'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+        'Lokasi belum dapat diperoleh.',
       );
     }
 
@@ -203,12 +216,12 @@ class AttendanceController extends ChangeNotifier {
     } on TimeoutException {
       throw const AttendanceFailure(
         AttendanceFailureKind.locationTimeout,
-        'GPS belum mendapatkan lokasi terbaru. Coba lagi di area terbuka.',
+        'Lokasi belum dapat diperoleh.',
       );
     } on AttendanceLocationServiceDisabledException {
       throw const AttendanceFailure(
         AttendanceFailureKind.locationServiceDisabled,
-        'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+        'Lokasi belum dapat diperoleh.',
       );
     }
   }

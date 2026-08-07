@@ -356,6 +356,8 @@ $env:AUTH_REFRESH_TOKEN_TTL_HOURS="168"
 $env:AUTH_TOKEN_ISSUER="r3-ti-faceattend-api"
 $env:AUTH_TOKEN_AUDIENCE="r3-ti-faceattend-client"
 $env:GEOFENCE_MAX_ACCURACY_METERS="50"
+$env:FACE_VERIFICATION_THRESHOLD="isi-threshold-development"
+$env:FACE_ATTENDANCE_GRANT_TTL_SECONDS="120"
 go run ./cmd/api
 ```
 
@@ -363,7 +365,10 @@ go run ./cmd/api
 access token dan refresh token harus bernilai positif.
 `BUSINESS_TIMEZONE` default `Asia/Jakarta` dan harus bernilai timezone IANA
 yang valid. `GEOFENCE_MAX_ACCURACY_METERS` default `50` dan harus berupa angka
-finite lebih besar dari `0`.
+finite lebih besar dari `0`. `FACE_ATTENDANCE_GRANT_TTL_SECONDS` default
+development adalah `120` detik dan harus dikalibrasi dari flow HP fisik agar
+cukup untuk liveness, verifikasi wajah, dan submit attendance tanpa membuka
+jendela replay yang terlalu panjang.
 
 ### Seed Admin Lokal
 
@@ -799,8 +804,10 @@ Flutter:
 ### Active Face Liveness Prototype
 
 Flutter menyediakan halaman standalone `Uji Keaktifan Wajah` dari Home face
-card ketika status wajah sudah `ENROLLED`. Halaman ini belum terhubung ke
-attendance dan tidak mengubah geofence.
+card ketika status wajah sudah `ENROLLED`. Untuk attendance, tombol
+Check-in/Check-out memakai flow orchestrator: GPS diperoleh lebih dulu,
+liveness lokal harus PASS, lalu mobile meminta grant melalui
+`POST /api/v1/face/verify-for-attendance` sebelum mengirim absensi.
 
 Flow:
 
@@ -815,9 +822,11 @@ Flow:
    orientation/mirroring dan wajib dikalibrasi pada HP fisik.
 7. Setelah liveness pass, stream dihentikan, aplikasi mengambil sample
    sementara, memakai ulang pipeline face verification, lalu memanggil
-   `POST /api/v1/face/verify`.
-8. Raw image, crop wajah, screenshot, base64 image, dan candidate embedding
-   tidak disimpan sebagai data aplikasi dan tidak boleh dicetak ke log.
+   `/face/verify` untuk standalone atau `/face/verify-for-attendance` untuk
+   attendance.
+8. Raw image, crop wajah, screenshot, base64 image, candidate embedding, dan
+   raw grant tidak disimpan sebagai data aplikasi dan tidak boleh dicetak ke
+   log.
 
 Threshold development berada di `LivenessConfig`: eye open/closed, yaw turn,
 yaw center, roll, ukuran wajah, margin tepi, timeout per action, timeout total,
@@ -844,8 +853,48 @@ Alur uji manual HP Android:
     yang sama.
 16. Retry berhasil setelah gagal.
 17. Home tetap berfungsi.
-18. Geofence attendance lama tetap bekerja.
-19. Tidak ada token, image, atau embedding di log.
+18. Check-in/check-out attendance menjalankan GPS -> liveness -> face
+    verification -> verification grant -> attendance.
+19. Di luar geofence tetap ditolak oleh backend.
+20. Tidak ada token, grant, image, atau embedding di log.
+
+### Attendance Verification Orchestrator
+
+Jalankan migration sampai `000007`, isi `FACE_VERIFICATION_THRESHOLD`, dan
+pastikan user dummy `USER` aktif sudah memiliki schedule assignment, location
+assignment, serta face profile `ENROLLED`.
+
+Verifikasi otomatis backend:
+
+```powershell
+cd backend
+go mod tidy
+gofmt -w ./internal ./cmd
+go test ./...
+go vet ./...
+```
+
+Verifikasi otomatis mobile:
+
+```powershell
+cd mobile
+dart format lib test
+flutter analyze
+flutter test
+```
+
+Alur manual HP fisik:
+
+1. Login sebagai `USER`.
+2. Pastikan status wajah `ENROLLED`.
+3. Berdiri di dalam geofence.
+4. Tap Check-in.
+5. Pastikan GPS diperoleh, liveness PASS, wajah cocok, grant diterbitkan, dan
+   check-in berhasil.
+6. Pastikan percobaan replay grant yang sama ditolak.
+7. Ulangi checkout dengan purpose `CHECK_OUT`.
+8. Pastikan luar geofence, face mismatch, liveness failure, dan grant expired
+   menampilkan pesan aman serta tidak logout user kecuali token memang expired.
 
 Verifikasi otomatis mobile:
 
