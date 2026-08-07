@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../core/network/authenticated_api_client.dart';
+import '../domain/face_attendance_grant.dart';
 import '../domain/face_failure.dart';
 import '../domain/face_status.dart';
 import '../domain/face_verification_result.dart';
@@ -13,6 +14,12 @@ abstract class FaceApi {
     required String embeddingVersion,
   });
   Future<FaceVerificationResult> verify({
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  });
+  Future<FaceAttendanceGrant> verifyForAttendance({
+    required String purpose,
     required List<double> embedding,
     required String embeddingModel,
     required String embeddingVersion,
@@ -80,6 +87,33 @@ class HttpFaceApiClient implements FaceApi {
     }
   }
 
+  @override
+  Future<FaceAttendanceGrant> verifyForAttendance({
+    required String purpose,
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/face/verify-for-attendance',
+      body: <String, Object?>{
+        'purpose': purpose,
+        'embedding': embedding,
+        'embedding_model': embeddingModel,
+        'embedding_version': embeddingVersion,
+      },
+    );
+    try {
+      return FaceAttendanceGrant.fromJson(response.payload['data']);
+    } on FormatException {
+      throw const FaceFailure(
+        FaceFailureKind.malformedResponse,
+        'Respons verifikasi wajah tidak sesuai.',
+      );
+    }
+  }
+
   Future<AuthenticatedApiResponse> _send({
     required String method,
     required String path,
@@ -125,6 +159,12 @@ class HttpFaceApiClient implements FaceApi {
       );
     }
     if (statusCode == HttpStatus.forbidden) {
+      if (path == '/face/verify-for-attendance') {
+        return const FaceFailure(
+          FaceFailureKind.verificationRejected,
+          'Wajah tidak sesuai dengan data yang terdaftar.',
+        );
+      }
       return const FaceFailure(
         FaceFailureKind.accountForbidden,
         'Akun tidak diizinkan melakukan enrollment wajah.',

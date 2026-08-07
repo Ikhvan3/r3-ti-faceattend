@@ -33,7 +33,10 @@ void main() {
       );
     final api = HttpAttendanceApiClient(client: requester);
 
-    final today = await api.checkIn(locationPayload());
+    final today = await api.checkIn(
+      locationPayload(),
+      verificationGrant: 'valid-grant',
+    );
 
     expect(today.state, AttendanceState.checkedIn);
     expect(requester.lastMethod, 'POST');
@@ -42,6 +45,7 @@ void main() {
       'latitude': -6.98946,
       'longitude': 110.416735,
       'accuracy_meters': 12.5,
+      'verification_grant': 'valid-grant',
     });
   });
 
@@ -60,7 +64,10 @@ void main() {
       );
     final api = HttpAttendanceApiClient(client: requester);
 
-    final today = await api.checkOut(locationPayload());
+    final today = await api.checkOut(
+      locationPayload(),
+      verificationGrant: 'valid-grant',
+    );
 
     expect(today.state, AttendanceState.completed);
     expect(requester.lastPath, '/attendance/check-out');
@@ -97,7 +104,7 @@ void main() {
     final api = HttpAttendanceApiClient(client: requester);
 
     expect(
-      api.checkIn(locationPayload()),
+      api.checkIn(locationPayload(), verificationGrant: 'valid-grant'),
       throwsA(
         isA<AttendanceFailure>()
             .having(
@@ -125,7 +132,7 @@ void main() {
     final api = HttpAttendanceApiClient(client: requester);
 
     expect(
-      api.checkIn(locationPayload()),
+      api.checkIn(locationPayload(), verificationGrant: 'valid-grant'),
       throwsA(
         isA<AttendanceFailure>().having(
           (error) => error.kind,
@@ -147,7 +154,7 @@ void main() {
     final api = HttpAttendanceApiClient(client: requester);
 
     expect(
-      api.checkIn(locationPayload()),
+      api.checkIn(locationPayload(), verificationGrant: 'valid-grant'),
       throwsA(
         isA<AttendanceFailure>().having(
           (error) => error.kind,
@@ -169,13 +176,41 @@ void main() {
     final api = HttpAttendanceApiClient(client: requester);
 
     expect(
-      api.checkIn(locationPayload()),
+      api.checkIn(locationPayload(), verificationGrant: 'valid-grant'),
       throwsA(
         isA<AttendanceFailure>().having(
           (error) => error.kind,
           'kind',
           AttendanceFailureKind.locationAssignmentMissing,
         ),
+      ),
+    );
+  });
+
+  test('403 grant expired dipetakan khusus', () async {
+    final requester = FakeAuthenticatedRequester()
+      ..responses.add(
+        response(403, <String, Object?>{
+          'status': 'error',
+          'message': 'verifikasi wajah kedaluwarsa',
+        }),
+      );
+    final api = HttpAttendanceApiClient(client: requester);
+
+    expect(
+      api.checkIn(locationPayload(), verificationGrant: 'expired-grant'),
+      throwsA(
+        isA<AttendanceFailure>()
+            .having(
+              (error) => error.kind,
+              'kind',
+              AttendanceFailureKind.faceVerificationExpired,
+            )
+            .having(
+              (error) => error.message,
+              'message',
+              'Verifikasi wajah kedaluwarsa. Silakan verifikasi ulang.',
+            ),
       ),
     );
   });

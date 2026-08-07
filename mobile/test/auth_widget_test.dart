@@ -273,9 +273,10 @@ void main() {
     await tester.tap(checkInButton);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Check-in').last);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(locationService.positionCalls, 1);
-    expect(attendanceApi.checkInCalls, 1);
+    expect(attendanceApi.checkInCalls, 0);
   });
 }

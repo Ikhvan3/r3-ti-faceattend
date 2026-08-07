@@ -67,7 +67,10 @@ class FakeAttendanceApi implements AttendanceApi {
   }
 
   @override
-  Future<AttendanceToday> checkIn(AttendanceLocationPayload location) async {
+  Future<AttendanceToday> checkIn(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  }) async {
     checkInCalls++;
     lastLocation = location;
     await actionCompleter?.future;
@@ -78,7 +81,10 @@ class FakeAttendanceApi implements AttendanceApi {
   }
 
   @override
-  Future<AttendanceToday> checkOut(AttendanceLocationPayload location) async {
+  Future<AttendanceToday> checkOut(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  }) async {
     checkOutCalls++;
     lastLocation = location;
     await actionCompleter?.future;

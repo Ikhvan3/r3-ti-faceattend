@@ -9,6 +9,8 @@ enum AttendanceFailureKind {
   poorAccuracy,
   locationAssignmentMissing,
   outsideGeofence,
+  faceVerificationRejected,
+  faceVerificationExpired,
   scheduleUnavailable,
   alreadyCheckedIn,
   notCheckedIn,

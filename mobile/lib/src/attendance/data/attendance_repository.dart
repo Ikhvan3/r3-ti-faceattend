@@ -10,12 +10,18 @@ class AttendanceRepository {
     return _api.getTodayAttendance();
   }
 
-  Future<AttendanceToday> checkIn(AttendanceLocationPayload location) {
-    return _api.checkIn(location);
+  Future<AttendanceToday> checkIn(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  }) {
+    return _api.checkIn(location, verificationGrant: verificationGrant);
   }
 
-  Future<AttendanceToday> checkOut(AttendanceLocationPayload location) {
-    return _api.checkOut(location);
+  Future<AttendanceToday> checkOut(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  }) {
+    return _api.checkOut(location, verificationGrant: verificationGrant);
   }
 
   Future<LocationRequirement> loadLocationRequirement() {

@@ -136,6 +136,7 @@ class LivenessResult {
     this.currentStepIndex = 0,
     this.stepState = LivenessStepState.waitingForFace,
     this.verified = false,
+    this.verificationGrant,
     this.sessionExpired = false,
   });
 
@@ -145,6 +146,7 @@ class LivenessResult {
   final int currentStepIndex;
   final LivenessStepState stepState;
   final bool verified;
+  final String? verificationGrant;
   final bool sessionExpired;
 
   LivenessAction? get currentAction {
@@ -174,6 +176,7 @@ class LivenessResult {
     int? currentStepIndex,
     LivenessStepState? stepState,
     bool? verified,
+    String? verificationGrant,
     bool? sessionExpired,
   }) {
     return LivenessResult(
@@ -183,6 +186,7 @@ class LivenessResult {
       currentStepIndex: currentStepIndex ?? this.currentStepIndex,
       stepState: stepState ?? this.stepState,
       verified: verified ?? this.verified,
+      verificationGrant: verificationGrant ?? this.verificationGrant,
       sessionExpired: sessionExpired ?? this.sessionExpired,
     );
   }

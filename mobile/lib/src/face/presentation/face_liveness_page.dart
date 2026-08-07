@@ -173,6 +173,15 @@ class _LivenessContentState extends State<_LivenessContent> {
 
   void _handleControllerState() {
     final state = _controller.state;
+    final grant = state.verificationGrant;
+    if (state.status == LivenessResultStatus.success && grant != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).pop(grant);
+        }
+      });
+      return;
+    }
     if (state.status != LivenessResultStatus.completed ||
         _verificationStarted) {
       return;

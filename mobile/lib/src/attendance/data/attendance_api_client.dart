@@ -6,8 +6,14 @@ import '../domain/attendance_models.dart';
 
 abstract class AttendanceApi {
   Future<AttendanceToday> getTodayAttendance();
-  Future<AttendanceToday> checkIn(AttendanceLocationPayload location);
-  Future<AttendanceToday> checkOut(AttendanceLocationPayload location);
+  Future<AttendanceToday> checkIn(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  });
+  Future<AttendanceToday> checkOut(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  });
   Future<LocationRequirement> getLocationRequirement();
   Future<AttendanceHistoryResponse> getAttendanceHistory({
     required int page,
@@ -28,21 +34,27 @@ class HttpAttendanceApiClient implements AttendanceApi {
   }
 
   @override
-  Future<AttendanceToday> checkIn(AttendanceLocationPayload location) async {
+  Future<AttendanceToday> checkIn(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  }) async {
     final response = await _send(
       method: 'POST',
       path: '/attendance/check-in',
-      body: location.toJson(),
+      body: location.toJson(verificationGrant: verificationGrant),
     );
     return _parseToday(response);
   }
 
   @override
-  Future<AttendanceToday> checkOut(AttendanceLocationPayload location) async {
+  Future<AttendanceToday> checkOut(
+    AttendanceLocationPayload location, {
+    required String verificationGrant,
+  }) async {
     final response = await _send(
       method: 'POST',
       path: '/attendance/check-out',
-      body: location.toJson(),
+      body: location.toJson(verificationGrant: verificationGrant),
     );
     return _parseToday(response);
   }
@@ -140,7 +152,19 @@ class HttpAttendanceApiClient implements AttendanceApi {
       if (message.contains('luar radius')) {
         return const AttendanceFailure(
           AttendanceFailureKind.outsideGeofence,
-          'Anda berada di luar radius lokasi kantor.',
+          'Anda berada di luar area absensi.',
+        );
+      }
+      if (message.contains('kedaluwarsa')) {
+        return const AttendanceFailure(
+          AttendanceFailureKind.faceVerificationExpired,
+          'Verifikasi wajah kedaluwarsa. Silakan verifikasi ulang.',
+        );
+      }
+      if (message.contains('verifikasi wajah')) {
+        return const AttendanceFailure(
+          AttendanceFailureKind.faceVerificationRejected,
+          'Wajah tidak sesuai dengan data yang terdaftar.',
         );
       }
       return const AttendanceFailure(
