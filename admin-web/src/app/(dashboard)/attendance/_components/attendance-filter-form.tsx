@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { AttendanceSearchQuery } from "@/lib/attendance/utils";
 
 export function AttendanceFilterForm({
@@ -68,12 +70,12 @@ export function AttendanceFilterForm({
         >
           Terapkan
         </button>
-        <a
+        <Link
           className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           href="/attendance"
         >
           Reset
-        </a>
+        </Link>
       </div>
     </form>
   );
