@@ -544,7 +544,8 @@ Tanggal akhir bersifat inklusif. Tidak ada endpoint `DELETE`.
 Endpoint attendance hanya untuk access token role `USER`. Backend selalu
 mengambil `user_id` dari token dan waktu dari server dengan timezone bisnis
 `Asia/Jakarta` secara default. Client tidak mengirim `user_id`, tanggal, atau
-waktu absensi.
+waktu absensi. Client juga tidak mengirim `location_id`, jarak, role, atau
+timestamp perangkat.
 
 ### Attendance Today
 
@@ -553,8 +554,21 @@ Endpoint:
 - `GET /api/v1/attendance/today`
 
 Response `data` memuat `attendance_date`, `schedule`, `check_in_at`,
-`check_out_at`, `state`, `can_check_in`, dan `can_check_out`. Nilai `state`
-adalah `NOT_CHECKED_IN`, `CHECKED_IN`, atau `COMPLETED`.
+`check_out_at`, `state`, `can_check_in`, `can_check_out`,
+`check_in_location`, dan `check_out_location`. Nilai `state` adalah
+`NOT_CHECKED_IN`, `CHECKED_IN`, atau `COMPLETED`.
+
+Evidence lokasi pada response aman untuk client:
+
+```json
+{
+  "office_location_id": "00000000-0000-4000-8000-000000000030",
+  "office_location_name": "Kantor Regional 3",
+  "accuracy_meters": 12.5,
+  "distance_meters": 36.7,
+  "inside_geofence": true
+}
+```
 
 ### Check-in
 
@@ -562,8 +576,20 @@ Endpoint:
 
 - `POST /api/v1/attendance/check-in`
 
-Body harus kosong. Check-in berhasil mengembalikan HTTP `201`. Check-in ganda
-pada tanggal kerja yang sama mengembalikan HTTP `409`.
+Request:
+
+```json
+{
+  "latitude": -6.98946,
+  "longitude": 110.416735,
+  "accuracy_meters": 12.5
+}
+```
+
+Check-in berhasil mengembalikan HTTP `201`. Backend mengambil assignment lokasi
+aktif berdasarkan tanggal bisnis, menghitung jarak geofence server-side, dan
+menyimpan evidence lokasi pada attendance record dalam transaksi yang sama.
+Check-in ganda pada tanggal kerja yang sama mengembalikan HTTP `409`.
 
 ### Check-out
 
@@ -571,8 +597,16 @@ Endpoint:
 
 - `POST /api/v1/attendance/check-out`
 
-Body harus kosong. Check-out berhasil mengembalikan HTTP `200`. Check-out
-sebelum check-in atau check-out ganda mengembalikan HTTP `409`.
+Request sama dengan check-in. Check-out berhasil mengembalikan HTTP `200` dan
+menyimpan evidence lokasi check-out. Check-out sebelum check-in atau check-out
+ganda mengembalikan HTTP `409`.
+
+Error geofence:
+
+- HTTP `400` untuk JSON/koordinat invalid.
+- HTTP `404` jika assignment lokasi hari ini tidak tersedia.
+- HTTP `403` jika lokasi kantor nonaktif atau posisi berada di luar radius.
+- HTTP `422` jika `accuracy_meters` melebihi `GEOFENCE_MAX_ACCURACY_METERS`.
 
 ### Attendance History
 
@@ -592,8 +626,8 @@ HTTP `200` dengan `items: []`.
 Flutter mobile memanggil endpoint attendance di atas langsung ke Golang API
 dengan `API_BASE_URL`. Jika access token kedaluwarsa, mobile melakukan refresh
 token satu kali melalui endpoint auth yang sudah ada, menyimpan token rotasi,
-dan mengulang request attendance satu kali. Mobile tidak mengirim `user_id`,
-tanggal, waktu, timezone, atau role pada request attendance.
+dan mengulang request attendance satu kali. Mobile hanya mengirim latitude,
+longitude, dan accuracy saat check-in/check-out.
 
 ### Attendance Location Requirement
 
@@ -607,8 +641,8 @@ hari ini. Request tidak menerima `user_id` dari query atau body.
 
 Response `data` memuat assignment lokasi aktif dan lokasi kantor aktif untuk
 pegawai tersebut. Jika assignment lokasi tidak tersedia, backend mengembalikan
-HTTP `404` dengan pesan aman. Endpoint ini belum meminta koordinat perangkat
-dan belum mengubah perilaku `check-in` atau `check-out`.
+HTTP `404` dengan pesan aman. Endpoint ini hanya memberi kebutuhan lokasi;
+enforcement geofence tetap dilakukan oleh endpoint check-in/check-out.
 
 ## Refresh Token
 

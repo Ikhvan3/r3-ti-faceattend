@@ -160,11 +160,13 @@ Flutter mobile
 ```
 
 Endpoint tersebut dilindungi role `USER`, mengambil `user_id` dari token, dan
-tidak menerima `user_id` dari client. Tahap ini belum melakukan enforcement
-geofence pada check-in/check-out sehingga mobile attendance lama tetap
-kompatibel. Kalkulator geofence backend memakai Haversine tanpa API maps
-eksternal; jarak dari client tidak dipercaya. GPS spoofing tetap menjadi risiko
-yang akan perlu mitigasi pada tahap enforcement berikutnya.
+tidak menerima `user_id` dari client. Check-in/check-out mobile wajib mengirim
+latitude, longitude, dan accuracy perangkat; backend memilih assignment lokasi
+hari ini, menolak akurasi GPS yang melewati
+`GEOFENCE_MAX_ACCURACY_METERS`, menghitung jarak Haversine server-side, dan
+menyimpan evidence lokasi pada attendance record. Tidak ada API maps eksternal,
+background location, atau tracking periodik. GPS spoofing tetap menjadi risiko
+yang perlu mitigasi pada tahap berikutnya.
 
 ## Prinsip Teknis
 

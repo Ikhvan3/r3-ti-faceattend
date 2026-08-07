@@ -350,8 +350,9 @@ contoh query.
 ## Office Location dan Assignment Lokasi
 
 Migration `000005_create_office_locations_and_assignments` menambahkan fondasi
-lokasi kantor untuk geofence. Tahap ini belum mewajibkan koordinat pada
-check-in/check-out.
+lokasi kantor untuk geofence. Endpoint check-in/check-out baru wajib menerima
+koordinat perangkat dan menyimpan evidence lokasi setelah backend menghitung
+jarak server-side.
 
 ### office_locations
 
@@ -412,7 +413,7 @@ Migration yang sama menambahkan kolom nullable pada `attendance_records`:
 - `check_out_accuracy_meters`
 - `check_out_distance_meters`
 
-Semua kolom bukti lokasi nullable agar record lama tetap valid dan mobile lama
-tetap dapat check-in/check-out tanpa koordinat. Kolom lokasi memiliki FK ke
-`office_locations`; kolom koordinat, accuracy, dan distance memiliki check
-constraint rentang nilai dasar.
+Semua kolom bukti lokasi nullable agar record lama tetap valid. Untuk record
+baru, backend mengisi evidence check-in/check-out dalam transaksi attendance
+yang sama. Kolom lokasi memiliki FK ke `office_locations`; kolom koordinat,
+accuracy, dan distance memiliki check constraint rentang nilai dasar.
