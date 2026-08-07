@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/employees", label: "Pegawai TI" },
+  { href: "/attendance", label: "Presensi" },
   { href: "/work-schedules", label: "Jadwal Kerja" },
   { href: "/schedule-assignments", label: "Penugasan Jadwal" },
   { href: "/office-locations", label: "Lokasi Kantor" },
