@@ -16,7 +16,9 @@ antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi,
 manajemen jadwal kerja, penugasan jadwal, manajemen lokasi kantor, penugasan
 lokasi, autentikasi mobile untuk pegawai `USER` aktif, absensi dasar, dan
 enforcement geofence server-side untuk check-in/check-out mobile. Face
-recognition, liveness, laporan, dan dashboard statistik belum masuk scope
+enrollment dan face verification standalone sudah tersedia. Active face
+liveness masih berupa prototype standalone untuk uji keaktifan wajah dan belum
+menjadi syarat attendance. Laporan dan dashboard statistik belum masuk scope
 tahap ini.
 
 ## Komponen Lokal

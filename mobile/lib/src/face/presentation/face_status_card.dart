@@ -7,6 +7,8 @@ import '../data/face_embedding_service.dart';
 import '../data/face_repository.dart';
 import 'face_enrollment_controller.dart';
 import 'face_enrollment_page.dart';
+import 'face_liveness_controller.dart';
+import 'face_liveness_page.dart';
 import 'face_verification_controller.dart';
 import 'face_verification_page.dart';
 
@@ -98,6 +100,14 @@ class FaceStatusCard extends StatelessWidget {
                 label: const Text('Uji Verifikasi Wajah'),
               ),
               const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: controller.isBusy
+                    ? null
+                    : () => _openLiveness(context),
+                icon: const Icon(Icons.face_retouching_natural),
+                label: const Text('Uji Keaktifan Wajah'),
+              ),
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: controller.isBusy
                     ? null
@@ -124,6 +134,29 @@ class FaceStatusCard extends StatelessWidget {
     if (context.mounted) {
       await context.read<FaceEnrollmentController>().loadStatus();
     }
+  }
+
+  Future<void> _openLiveness(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) {
+          final detector = MlKitFaceDetectorService.liveness();
+          return MultiProvider(
+            providers: [
+              Provider<FaceDetectorService>.value(value: detector),
+              ChangeNotifierProvider<FaceLivenessController>(
+                create: (_) => FaceLivenessController(
+                  repository: context.read<FaceRepository>(),
+                  detector: detector,
+                  embeddingService: TfliteFaceEmbeddingService(),
+                ),
+              ),
+            ],
+            child: const FaceLivenessPage(),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _openVerification(BuildContext context) async {

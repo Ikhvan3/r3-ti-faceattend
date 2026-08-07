@@ -10,11 +10,13 @@ class FaceCameraCapturePage extends StatefulWidget {
     required this.title,
     required this.permissionMessage,
     required this.builder,
+    this.imageFormatGroup = ImageFormatGroup.jpeg,
     super.key,
   });
 
   final String title;
   final String permissionMessage;
+  final ImageFormatGroup imageFormatGroup;
   final Widget Function(
     BuildContext context,
     CameraController cameraController,
@@ -81,7 +83,7 @@ class _FaceCameraCapturePageState extends State<FaceCameraCapturePage>
         selected,
         ResolutionPreset.medium,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
+        imageFormatGroup: widget.imageFormatGroup,
       );
       await controller.initialize();
       if (!mounted) {

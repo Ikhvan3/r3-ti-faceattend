@@ -62,26 +62,29 @@ void main() {
     await third;
   });
 
-  test('valid sample calls embedding service and sends model version', () async {
-    final api = FakeFaceApi(status: enrolledStatus);
-    final embedding = FakeFaceEmbeddingService(
-      embedding: List<double>.filled(FaceModelConfig.embeddingDimension, 1),
-    );
-    final controller = newFaceVerificationController(
-      api: api,
-      embedding: embedding,
-    );
+  test(
+    'valid sample calls embedding service and sends model version',
+    () async {
+      final api = FakeFaceApi(status: enrolledStatus);
+      final embedding = FakeFaceEmbeddingService(
+        embedding: List<double>.filled(FaceModelConfig.embeddingDimension, 1),
+      );
+      final controller = newFaceVerificationController(
+        api: api,
+        embedding: embedding,
+      );
 
-    await controller.verifyFromCamera(() async => 'sample.jpg');
+      await controller.verifyFromCamera(() async => 'sample.jpg');
 
-    expect(embedding.embedCount, FaceModelConfig.sampleTarget);
-    expect(api.verifyCount, 1);
-    expect(api.lastEmbedding, hasLength(FaceModelConfig.embeddingDimension));
-    expect(api.lastEmbeddingModel, FaceModelConfig.identifier);
-    expect(api.lastEmbeddingVersion, FaceModelConfig.version);
-    expect(controller.verified, isTrue);
-    expect(controller.message, 'Wajah berhasil diverifikasi.');
-  });
+      expect(embedding.embedCount, FaceModelConfig.sampleTarget);
+      expect(api.verifyCount, 1);
+      expect(api.lastEmbedding, hasLength(FaceModelConfig.embeddingDimension));
+      expect(api.lastEmbeddingModel, FaceModelConfig.identifier);
+      expect(api.lastEmbeddingVersion, FaceModelConfig.version);
+      expect(controller.verified, isTrue);
+      expect(controller.message, 'Wajah berhasil diverifikasi.');
+    },
+  );
 
   test('verified false UI state does not expire session', () async {
     final api = FakeFaceApi(
@@ -101,7 +104,10 @@ void main() {
     final offline = newFaceVerificationController(
       api: FakeFaceApi(
         status: enrolledStatus,
-        verifyError: const FaceFailure(FaceFailureKind.apiUnavailable, 'offline'),
+        verifyError: const FaceFailure(
+          FaceFailureKind.apiUnavailable,
+          'offline',
+        ),
       ),
     );
     await offline.verifyFromCamera(() async => 'sample.jpg');
@@ -114,23 +120,26 @@ void main() {
     expect(invalid.status, FaceVerificationControllerStatus.failure);
   });
 
-  test('multiple submit is prevented and candidate is not persisted locally', () async {
-    final api = FakeFaceApi(status: enrolledStatus);
-    final controller = newFaceVerificationController(api: api);
-    var captureCalls = 0;
+  test(
+    'multiple submit is prevented and candidate is not persisted locally',
+    () async {
+      final api = FakeFaceApi(status: enrolledStatus);
+      final controller = newFaceVerificationController(api: api);
+      var captureCalls = 0;
 
-    final first = controller.verifyFromCamera(() async {
-      captureCalls += 1;
-      await Future<void>.delayed(const Duration(milliseconds: 1));
-      return 'sample.jpg';
-    });
-    await Future<void>.delayed(Duration.zero);
-    await controller.verifyFromCamera(() async => 'ignored.jpg');
-    await first;
+      final first = controller.verifyFromCamera(() async {
+        captureCalls += 1;
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+        return 'sample.jpg';
+      });
+      await Future<void>.delayed(Duration.zero);
+      await controller.verifyFromCamera(() async => 'ignored.jpg');
+      await first;
 
-    expect(captureCalls, FaceModelConfig.sampleTarget);
-    expect(api.verifyCount, 1);
-  });
+      expect(captureCalls, FaceModelConfig.sampleTarget);
+      expect(api.verifyCount, 1);
+    },
+  );
 }
 
 FaceVerificationController newFaceVerificationController({

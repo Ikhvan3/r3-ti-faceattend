@@ -41,47 +41,48 @@ class FaceSampleCollector {
   }
 
   FaceDetectionResult _validateFaces(List<FaceDetectionResult> faces) {
-    if (faces.isEmpty) {
-      throw const FaceFailure(
-        FaceFailureKind.noFace,
-        'Wajah belum terdeteksi.',
-      );
-    }
-    if (faces.length > 1) {
-      throw const FaceFailure(
-        FaceFailureKind.multipleFaces,
-        'Pastikan hanya satu wajah di kamera.',
-      );
-    }
-    final face = faces.single;
-    final imageShortSide = min(face.imageWidth, face.imageHeight);
-    final boxShortSide = min(face.boundingBox.width, face.boundingBox.height);
-    if (boxShortSide / imageShortSide < FaceModelConfig.minFaceBoxRatio) {
-      throw const FaceFailure(
-        FaceFailureKind.faceTooSmall,
-        'Dekatkan wajah ke kamera.',
-      );
-    }
-    final marginX = face.imageWidth * FaceModelConfig.edgeMarginRatio;
-    final marginY = face.imageHeight * FaceModelConfig.edgeMarginRatio;
-    if (face.boundingBox.left < marginX ||
-        face.boundingBox.top < marginY ||
-        face.boundingBox.right > face.imageWidth - marginX ||
-        face.boundingBox.bottom > face.imageHeight - marginY) {
-      throw const FaceFailure(
-        FaceFailureKind.faceTooCloseToEdge,
-        'Posisikan wajah di tengah frame.',
-      );
-    }
-    final yaw = face.headEulerAngleY?.abs() ?? 0;
-    final roll = face.headEulerAngleZ?.abs() ?? 0;
-    if (yaw > FaceModelConfig.maxHeadEulerY ||
-        roll > FaceModelConfig.maxHeadEulerZ) {
-      throw const FaceFailure(
-        FaceFailureKind.invalidPose,
-        'Hadapkan wajah lurus ke kamera.',
-      );
-    }
-    return face;
+    return validateFaceSample(faces);
   }
+}
+
+FaceDetectionResult validateFaceSample(List<FaceDetectionResult> faces) {
+  if (faces.isEmpty) {
+    throw const FaceFailure(FaceFailureKind.noFace, 'Wajah belum terdeteksi.');
+  }
+  if (faces.length > 1) {
+    throw const FaceFailure(
+      FaceFailureKind.multipleFaces,
+      'Pastikan hanya satu wajah di kamera.',
+    );
+  }
+  final face = faces.single;
+  final imageShortSide = min(face.imageWidth, face.imageHeight);
+  final boxShortSide = min(face.boundingBox.width, face.boundingBox.height);
+  if (boxShortSide / imageShortSide < FaceModelConfig.minFaceBoxRatio) {
+    throw const FaceFailure(
+      FaceFailureKind.faceTooSmall,
+      'Dekatkan wajah ke kamera.',
+    );
+  }
+  final marginX = face.imageWidth * FaceModelConfig.edgeMarginRatio;
+  final marginY = face.imageHeight * FaceModelConfig.edgeMarginRatio;
+  if (face.boundingBox.left < marginX ||
+      face.boundingBox.top < marginY ||
+      face.boundingBox.right > face.imageWidth - marginX ||
+      face.boundingBox.bottom > face.imageHeight - marginY) {
+    throw const FaceFailure(
+      FaceFailureKind.faceTooCloseToEdge,
+      'Posisikan wajah di tengah frame.',
+    );
+  }
+  final yaw = face.headEulerAngleY?.abs() ?? 0;
+  final roll = face.headEulerAngleZ?.abs() ?? 0;
+  if (yaw > FaceModelConfig.maxHeadEulerY ||
+      roll > FaceModelConfig.maxHeadEulerZ) {
+    throw const FaceFailure(
+      FaceFailureKind.invalidPose,
+      'Hadapkan wajah lurus ke kamera.',
+    );
+  }
+  return face;
 }

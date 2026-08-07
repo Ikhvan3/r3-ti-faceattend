@@ -796,6 +796,72 @@ Flutter:
 10. Attendance/geofence lama tetap diuji terpisah karena verification belum
     menjadi syarat attendance.
 
+### Active Face Liveness Prototype
+
+Flutter menyediakan halaman standalone `Uji Keaktifan Wajah` dari Home face
+card ketika status wajah sudah `ENROLLED`. Halaman ini belum terhubung ke
+attendance dan tidak mengubah geofence.
+
+Flow:
+
+1. Kamera depan menampilkan preview dengan aspect ratio native.
+2. ML Kit memproses `CameraImage` stream dengan classification dan tracking.
+3. Challenge acak 2-3 langkah dimulai saat tepat satu wajah valid berada di
+   tengah frame.
+4. Aksi minimum: blink, hadap sedikit ke kiri, hadap sedikit ke kanan, dan
+   kembali menghadap depan.
+5. Blink harus `OPEN -> CLOSED -> OPEN`; satu frame mata tertutup tidak cukup.
+6. Head turn memakai `headEulerAngleY`; mapping kiri/kanan melewati helper
+   orientation/mirroring dan wajib dikalibrasi pada HP fisik.
+7. Setelah liveness pass, stream dihentikan, aplikasi mengambil sample
+   sementara, memakai ulang pipeline face verification, lalu memanggil
+   `POST /api/v1/face/verify`.
+8. Raw image, crop wajah, screenshot, base64 image, dan candidate embedding
+   tidak disimpan sebagai data aplikasi dan tidak boleh dicetak ke log.
+
+Threshold development berada di `LivenessConfig`: eye open/closed, yaw turn,
+yaw center, roll, ukuran wajah, margin tepi, timeout per action, timeout total,
+dan timeout face lost. Nilai tersebut adalah titik awal development dan harus
+dikalibrasi dari HP fisik yang dipakai.
+
+Alur uji manual HP Android:
+
+1. Login sebagai `USER`.
+2. Pastikan status wajah `ENROLLED`.
+3. Buka `Uji Keaktifan Wajah`.
+4. Pastikan preview tidak gepeng.
+5. Tepat satu wajah dapat memulai challenge.
+6. Tanpa wajah ditolak.
+7. Dua wajah ditolak.
+8. Blink terdeteksi hanya setelah open, closed, lalu open.
+9. Turn left terdeteksi.
+10. Turn right terdeteksi.
+11. Challenge berubah antar sesi.
+12. Wajah statis tanpa aksi tidak pass.
+13. Timeout bekerja.
+14. Liveness pass.
+15. Face verification setelah liveness menghasilkan `verified=true` untuk user
+    yang sama.
+16. Retry berhasil setelah gagal.
+17. Home tetap berfungsi.
+18. Geofence attendance lama tetap bekerja.
+19. Tidak ada token, image, atau embedding di log.
+
+Verifikasi otomatis mobile:
+
+```powershell
+cd mobile
+dart format .
+flutter analyze
+flutter test
+```
+
+Unit test liveness memakai fake frame/detector dan tidak membutuhkan kamera.
+Coverage mencakup zero face, multiple face, invalid quality, tracking berubah,
+blink valid, mata tertutup tanpa reopen, head turn, return center, random
+challenge, timeout, face lost, liveness completed, hasil verify true/false, API
+error, retry, dan pencegahan multiple submit.
+
 ### Health Check
 
 Endpoint health tersedia di:
