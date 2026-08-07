@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "R3 FaceAttend - Physical Android",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "mobile",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://127.0.0.1:8080/api/v1"
+      ],
+      "preLaunchTask": "R3 FaceAttend: adb reverse physical"
+    },
+    {
+      "name": "R3 FaceAttend - Android Emulator",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "mobile",
+      "program": "lib/main.dart",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://10.0.2.2:8080/api/v1"
+      ]
+    }
+  ]
+}

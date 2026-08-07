@@ -35,8 +35,9 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api/v1
 Jalankan di perangkat fisik melalui `adb reverse`:
 
 ```powershell
-adb reverse tcp:8080 tcp:8080
-flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8080/api/v1
+cd ..
+.\scripts\adb-reverse.ps1
+.\scripts\run-mobile.ps1
 ```
 
 Jalankan di perangkat fisik melalui jaringan Wi-Fi:
@@ -45,8 +46,10 @@ Jalankan di perangkat fisik melalui jaringan Wi-Fi:
 flutter run --dart-define=API_BASE_URL=http://<IP-LAPTOP>:8080/api/v1
 ```
 
-Cleartext HTTP hanya diizinkan untuk build debug Android melalui debug network
-security config. Build utama tidak menambahkan izin kamera atau lokasi.
+Login mobile tidak membutuhkan token dari PowerShell. Aplikasi melakukan login,
+memuat profil, menyimpan token, dan refresh session sendiri. Cleartext HTTP
+hanya diizinkan untuk build debug Android melalui debug network security
+config.
 
 ## Absensi Dasar
 
@@ -60,10 +63,11 @@ attendance backend:
 
 Check-in dan check-out memakai waktu server. Aplikasi tidak mengirim `user_id`,
 tanggal absensi, waktu check-in, waktu check-out, timezone, atau role. Jika
-access token kedaluwarsa, aplikasi melakukan refresh token satu kali dan
-mengulang request attendance satu kali.
+access token kedaluwarsa, aplikasi melakukan refresh token dengan single-flight
+agar beberapa request 401 paralel tidak memutar refresh token berkali-kali.
 
-GPS, geofence, kamera, verifikasi wajah, liveness, koreksi absensi, cuti,
+Check-in dan check-out memakai urutan GPS, liveness lokal, verifikasi wajah
+backend, verification grant, lalu submit attendance. Koreksi absensi, cuti,
 lembur, dan laporan admin belum tersedia pada tahap ini.
 
 ## Verifikasi

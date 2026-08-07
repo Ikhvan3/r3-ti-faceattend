@@ -124,13 +124,13 @@ class HttpAuthApiClient implements AuthApi {
       logApiException(method, path, 'timeout');
       throw const AuthFailure(
         AuthFailureKind.requestTimeout,
-        'Request terlalu lama. Coba lagi.',
+        'Koneksi terlalu lambat. Silakan coba lagi.',
       );
     } on SocketException {
       logApiException(method, path, 'socket');
       throw const AuthFailure(
         AuthFailureKind.apiUnavailable,
-        'Layanan belum tersedia. Coba lagi nanti.',
+        'Layanan belum tersedia. Pastikan backend aktif dan perangkat terhubung.',
       );
     } on FormatException {
       logApiException(method, path, 'malformed_response');
@@ -142,7 +142,7 @@ class HttpAuthApiClient implements AuthApi {
       logApiException(method, path, 'client');
       throw const AuthFailure(
         AuthFailureKind.apiUnavailable,
-        'Layanan belum tersedia. Coba lagi nanti.',
+        'Layanan belum tersedia. Pastikan backend aktif dan perangkat terhubung.',
       );
     }
   }
@@ -180,7 +180,7 @@ class HttpAuthApiClient implements AuthApi {
             : AuthFailureKind.sessionExpired,
         isCredentialError
             ? 'Email atau password tidak valid.'
-            : 'Session berakhir. Silakan login ulang.',
+            : 'Session berakhir. Silakan login kembali.',
       );
     }
     if (statusCode == 403) {
@@ -192,7 +192,7 @@ class HttpAuthApiClient implements AuthApi {
     if (statusCode >= 500) {
       return const AuthFailure(
         AuthFailureKind.internalError,
-        'Layanan mengalami gangguan. Coba lagi nanti.',
+        'Layanan belum tersedia. Pastikan backend aktif dan perangkat terhubung.',
       );
     }
 

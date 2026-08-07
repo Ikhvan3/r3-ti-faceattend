@@ -17,6 +17,8 @@ enum AttendanceControllerStatus {
 
 enum AttendanceAction { checkIn, checkOut, refresh }
 
+enum AttendanceActionStep { location, face, submit }
+
 typedef AttendanceVerificationGrantLoader = Future<String> Function();
 
 class AttendanceController extends ChangeNotifier {
@@ -29,6 +31,7 @@ class AttendanceController extends ChangeNotifier {
   AttendanceToday? _today;
   String? _errorMessage;
   AttendanceAction? _currentAction;
+  AttendanceActionStep? _currentStep;
   bool _isRefreshing = false;
   bool _sessionExpired = false;
 
@@ -36,6 +39,7 @@ class AttendanceController extends ChangeNotifier {
   AttendanceToday? get today => _today;
   String? get errorMessage => _errorMessage;
   AttendanceAction? get currentAction => _currentAction;
+  AttendanceActionStep? get currentStep => _currentStep;
   bool get isRefreshing => _isRefreshing;
   bool get sessionExpired => _sessionExpired;
   bool get isBusy =>
@@ -119,13 +123,18 @@ class AttendanceController extends ChangeNotifier {
 
     _status = AttendanceControllerStatus.actionLoading;
     _currentAction = action;
+    _currentStep = AttendanceActionStep.location;
     _errorMessage = null;
     _sessionExpired = false;
     notifyListeners();
 
     try {
       final location = await _currentLocationPayload();
+      _currentStep = AttendanceActionStep.face;
+      notifyListeners();
       final verificationGrant = await loadGrant();
+      _currentStep = AttendanceActionStep.submit;
+      notifyListeners();
       _today = await operation(location, verificationGrant: verificationGrant);
       _today = await _repository.loadToday();
       _status = AttendanceControllerStatus.loaded;
@@ -141,6 +150,7 @@ class AttendanceController extends ChangeNotifier {
       }
     } finally {
       _currentAction = null;
+      _currentStep = null;
       notifyListeners();
     }
   }

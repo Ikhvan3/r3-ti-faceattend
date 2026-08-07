@@ -37,6 +37,9 @@ class AuthRepository {
       final user = await _api.me(accessToken: accessToken);
       return _validateEmployeeUser(user);
     } on AuthFailure catch (error) {
+      if (isTransientAuthFailure(error)) {
+        rethrow;
+      }
       if (error.kind != AuthFailureKind.sessionExpired) {
         await _tokenStorage.clearTokens();
         return null;
@@ -49,8 +52,19 @@ class AuthRepository {
         return null;
       }
       return getCurrentUser();
+    } on AuthFailure catch (error) {
+      if (isAuthoritativeSessionFailure(error)) {
+        await _tokenStorage.clearTokens();
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<UserProfile?> restoreSessionOrNull() async {
+    try {
+      return await restoreSession();
     } on AuthFailure {
-      await _tokenStorage.clearTokens();
       return null;
     }
   }
@@ -80,8 +94,10 @@ class AuthRepository {
       _validateEmployeeUser(tokens.user);
       await _tokenStorage.saveTokens(tokens);
       return tokens;
-    } on AuthFailure {
-      await _tokenStorage.clearTokens();
+    } on AuthFailure catch (error) {
+      if (isAuthoritativeSessionFailure(error)) {
+        await _tokenStorage.clearTokens();
+      }
       rethrow;
     }
   }

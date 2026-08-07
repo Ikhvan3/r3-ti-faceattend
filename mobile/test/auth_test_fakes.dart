@@ -15,8 +15,10 @@ class FakeAuthApi implements AuthApi {
   Object? meError;
   Object? logoutError;
   Completer<void>? loginCompleter;
+  Completer<void>? refreshCompleter;
   final List<Object> meErrors = <Object>[];
   final List<UserProfile> meResults = <UserProfile>[];
+  final List<AuthTokenData> refreshResults = <AuthTokenData>[];
   int loginCalls = 0;
   int refreshCalls = 0;
   int meCalls = 0;
@@ -38,8 +40,12 @@ class FakeAuthApi implements AuthApi {
   @override
   Future<AuthTokenData> refresh({required String refreshToken}) async {
     refreshCalls++;
+    await refreshCompleter?.future;
     if (refreshError != null) {
       throw refreshError!;
+    }
+    if (refreshResults.isNotEmpty) {
+      return refreshResults.removeAt(0);
     }
     return refreshResult ??
         userTokens(access: 'new-access', refresh: 'new-refresh');
@@ -170,4 +176,9 @@ const expiredFailure = AuthFailure(
 const invalidCredentialFailure = AuthFailure(
   AuthFailureKind.invalidCredentials,
   'Email atau password tidak valid.',
+);
+
+const apiUnavailableFailure = AuthFailure(
+  AuthFailureKind.apiUnavailable,
+  'Layanan belum tersedia.',
 );

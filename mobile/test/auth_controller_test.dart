@@ -29,6 +29,29 @@ void main() {
     await controller.initialize();
 
     expect(controller.status, AuthControllerStatus.unauthenticated);
+    expect(controller.sessionRestoreFailed, isFalse);
+  });
+
+  test('initial gagal sementara bisa dicoba ulang', () async {
+    final api = FakeAuthApi()..meError = apiUnavailableFailure;
+    final storage = FakeTokenStorage()
+      ..accessToken = 'access-token'
+      ..refreshToken = 'refresh-token';
+    final controller = AuthController(
+      AuthRepository(api: api, tokenStorage: storage),
+    );
+
+    await controller.initialize();
+
+    expect(controller.status, AuthControllerStatus.failure);
+    expect(controller.sessionRestoreFailed, isTrue);
+    expect(storage.accessToken, 'access-token');
+
+    api.meError = null;
+    await controller.initialize();
+
+    expect(controller.status, AuthControllerStatus.authenticated);
+    expect(controller.sessionRestoreFailed, isFalse);
   });
 
   test('login loading ke authenticated', () async {
@@ -57,6 +80,7 @@ void main() {
 
     expect(controller.status, AuthControllerStatus.failure);
     expect(controller.errorMessage, isNotNull);
+    expect(controller.sessionRestoreFailed, isFalse);
   });
 
   test('multiple submit dicegah', () async {

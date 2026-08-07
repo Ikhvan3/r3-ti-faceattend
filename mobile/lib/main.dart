@@ -19,6 +19,7 @@ import 'src/face/domain/face_attendance_grant.dart';
 import 'src/face/domain/face_failure.dart';
 import 'src/face/domain/face_status.dart';
 import 'src/face/domain/face_verification_result.dart';
+import 'src/core/theme/app_theme.dart';
 
 void main() {
   final apiConfig = ApiConfig.fromEnvironment();
@@ -85,13 +86,7 @@ class R3TiFaceAttendApp extends StatelessWidget {
       child: MaterialApp(
         title: 'R3 TI FaceAttend',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-          inputDecorationTheme: const InputDecorationTheme(
-            border: OutlineInputBorder(),
-          ),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.light,
         home: const AuthGate(),
       ),
     );

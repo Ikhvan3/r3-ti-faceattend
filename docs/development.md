@@ -33,11 +33,24 @@ flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080/api/v1
 Untuk perangkat fisik melalui `adb reverse`:
 
 ```powershell
-adb reverse tcp:8080 tcp:8080
+.\scripts\adb-reverse.ps1
+.\scripts\run-mobile.ps1
+```
+
+Jika menjalankan manual dari folder `mobile`, gunakan:
+
+```powershell
 flutter run --dart-define=API_BASE_URL=http://127.0.0.1:8080/api/v1
 ```
 
-Untuk perangkat fisik melalui Wi-Fi, ganti host dengan IP laptop lokal.
+Konfigurasi VS Code juga tersedia:
+
+- `R3 FaceAttend - Physical Android`
+- `R3 FaceAttend - Android Emulator`
+
+Untuk perangkat fisik melalui Wi-Fi, ganti host dengan IP laptop lokal. Login
+mobile tidak membutuhkan access token PowerShell; aplikasi melakukan
+`/auth/login`, `/auth/me`, penyimpanan token aman, dan refresh session sendiri.
 Gunakan akun dummy `USER` aktif dari endpoint admin employee. Jangan menyimpan
 credential, token, atau header `Authorization` pada log atau dokumentasi.
 
@@ -317,8 +330,10 @@ psql -U postgres -c "CREATE DATABASE r3_ti_faceattend;"
 ### Konfigurasi Environment Backend
 
 Backend membaca konfigurasi dari environment variable proses. File
-`backend/.env.example` hanya menjadi contoh nilai lokal, bukan file yang
-dibaca otomatis oleh aplikasi.
+`backend/.env.example` menjadi contoh nilai lokal. Untuk API lokal,
+`go run ./cmd/api` otomatis memuat `backend/.env` bila file tersebut ada.
+Environment variable yang sudah diset di shell tetap diprioritaskan dan tidak
+ditimpa oleh file `.env`.
 
 Variabel yang digunakan backend:
 
@@ -930,16 +945,9 @@ dengan status `degraded` dan HTTP status `503`.
 
 ## Menjalankan Flutter pada HP Android melalui USB
 
-Pastikan backend berjalan pada port 8080.
+Pastikan backend berjalan pada port 8080, lalu jalankan dari root repository:
 
 ```powershell
-$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
-
-& $adb devices
-& $adb reverse tcp:8080 tcp:8080
-& $adb reverse --list
-
-flutter run -d DEVICE_ID `
-  --dart-define="API_BASE_URL=http://127.0.0.1:8080/api/v1"
-
-
+.\scripts\adb-reverse.ps1
+.\scripts\run-mobile.ps1
+```

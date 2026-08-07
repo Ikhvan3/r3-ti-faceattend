@@ -1,0 +1,17 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "R3 FaceAttend: adb reverse physical",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/scripts/adb-reverse.ps1"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

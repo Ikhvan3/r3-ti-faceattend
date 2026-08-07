@@ -7,7 +7,9 @@ import '../domain/attendance_models.dart';
 import 'attendance_formatters.dart';
 
 class AttendanceHistoryPage extends StatefulWidget {
-  const AttendanceHistoryPage({super.key});
+  const AttendanceHistoryPage({this.embedded = false, super.key});
+
+  final bool embedded;
 
   @override
   State<AttendanceHistoryPage> createState() => _AttendanceHistoryPageState();
@@ -59,6 +61,15 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return CustomScrollView(
+        slivers: [
+          const SliverAppBar(pinned: true, title: Text('Riwayat')),
+          SliverFillRemaining(child: _body()),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Riwayat Absensi')),
       body: _body(),
@@ -98,7 +109,12 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
       children: [
         Expanded(
           child: ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              widget.embedded ? 8 : 16,
+              16,
+              16,
+            ),
             itemBuilder: (context, index) {
               return _HistoryTile(record: history.items[index]);
             },
