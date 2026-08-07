@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -73,5 +74,46 @@ func TestConfigBusinessLocationRejectsInvalidTimezone(t *testing.T) {
 
 	if _, err := cfg.BusinessLocation(); err == nil {
 		t.Fatal("BusinessLocation() error = nil, want error")
+	}
+}
+
+func TestGeofenceConfigValidateAcceptsFinitePositiveAccuracy(t *testing.T) {
+	cfg := GeofenceConfig{MaxAccuracyMeters: 50}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestGeofenceConfigValidateRejectsInvalidAccuracy(t *testing.T) {
+	tests := []float64{0, -1, math.Inf(1), math.NaN()}
+
+	for _, value := range tests {
+		t.Run("invalid", func(t *testing.T) {
+			cfg := GeofenceConfig{MaxAccuracyMeters: value}
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("Validate() error = nil, want error for %v", value)
+			}
+		})
+	}
+}
+
+func TestLoadDefaultsGeofenceMaxAccuracy(t *testing.T) {
+	t.Setenv("GEOFENCE_MAX_ACCURACY_METERS", "")
+
+	cfg := Load()
+
+	if cfg.Geofence.MaxAccuracyMeters != 50 {
+		t.Fatalf("MaxAccuracyMeters = %v, want 50", cfg.Geofence.MaxAccuracyMeters)
+	}
+}
+
+func TestLoadRejectsInvalidGeofenceMaxAccuracyThroughValidate(t *testing.T) {
+	t.Setenv("GEOFENCE_MAX_ACCURACY_METERS", "not-a-number")
+
+	cfg := Load()
+
+	if err := cfg.Geofence.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want error")
 	}
 }

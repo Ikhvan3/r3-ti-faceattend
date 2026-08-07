@@ -348,18 +348,23 @@ func (s Service) assignmentResponse(row LocationAssignmentRecord) LocationAssign
 		Office:        row.Office,
 		EffectiveFrom: formatDate(row.EffectiveFrom),
 		EffectiveTo:   effectiveTo,
-		Status:        assignmentStatus(row, s.businessDate()),
+		Status:        assignmentStatus(row, s.businessDate(), s.location),
 		CreatedAt:     row.CreatedAt,
 		UpdatedAt:     row.UpdatedAt,
 	}
 }
 
-func assignmentStatus(row LocationAssignmentRecord, businessDate time.Time) AssignmentStatus {
-	if row.EffectiveFrom.After(businessDate) {
+func assignmentStatus(row LocationAssignmentRecord, businessDate time.Time, location *time.Location) AssignmentStatus {
+	businessDay := normalizeDateOnly(businessDate, location)
+	effectiveFrom := normalizeDateOnly(row.EffectiveFrom, location)
+	if businessDay.Before(effectiveFrom) {
 		return AssignmentStatusUpcoming
 	}
-	if row.EffectiveTo != nil && row.EffectiveTo.Before(businessDate) {
-		return AssignmentStatusEnded
+	if row.EffectiveTo != nil {
+		effectiveTo := normalizeDateOnly(*row.EffectiveTo, location)
+		if businessDay.After(effectiveTo) {
+			return AssignmentStatusEnded
+		}
 	}
 	return AssignmentStatusCurrent
 }
@@ -371,6 +376,11 @@ func safeEmployee(u user.User) user.EmployeeProfile {
 func (s Service) businessDate() time.Time {
 	now := s.now().In(s.location)
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, s.location)
+}
+
+func normalizeDateOnly(value time.Time, location *time.Location) time.Time {
+	inLocation := value.In(location)
+	return time.Date(inLocation.Year(), inLocation.Month(), inLocation.Day(), 0, 0, 0, 0, location)
 }
 
 func totalPages(totalItems int, pageSize int) int {

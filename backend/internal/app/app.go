@@ -34,6 +34,9 @@ func run() error {
 	if _, err := cfg.BusinessLocation(); err != nil {
 		return err
 	}
+	if err := cfg.Geofence.Validate(); err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -102,7 +105,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			employeeService := user.NewEmployeeService(userRepo, hasher)
 			employeeHandler := user.NewEmployeeHandler(employeeService)
 			attendanceRepo := attendance.NewPostgresRepository(pool)
-			attendanceService := attendance.NewService(attendanceRepo, businessLocation)
+			attendanceService := attendance.NewService(attendanceRepo, businessLocation, cfg.Geofence.MaxAccuracyMeters)
 			attendanceHandler := attendance.NewHandler(attendanceService)
 			adminScheduleRepo := attendance.NewAdminPostgresRepository(pool)
 			adminScheduleService := attendance.NewAdminScheduleService(adminScheduleRepo, businessLocation)

@@ -26,33 +26,39 @@ type WorkSchedule struct {
 }
 
 type AttendanceRecord struct {
-	ID             string
-	UserID         string
-	ScheduleID     string
-	AttendanceDate time.Time
-	CheckInAt      time.Time
-	CheckOutAt     *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID               string
+	UserID           string
+	ScheduleID       string
+	AttendanceDate   time.Time
+	CheckInAt        time.Time
+	CheckOutAt       *time.Time
+	CheckInLocation  *AttendanceLocationEvidence
+	CheckOutLocation *AttendanceLocationEvidence
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type DailyStatus struct {
-	AttendanceDate string          `json:"attendance_date"`
-	Schedule       WorkSchedule    `json:"schedule"`
-	CheckInAt      *time.Time      `json:"check_in_at"`
-	CheckOutAt     *time.Time      `json:"check_out_at"`
-	State          AttendanceState `json:"state"`
-	CanCheckIn     bool            `json:"can_check_in"`
-	CanCheckOut    bool            `json:"can_check_out"`
+	AttendanceDate   string                      `json:"attendance_date"`
+	Schedule         WorkSchedule                `json:"schedule"`
+	CheckInAt        *time.Time                  `json:"check_in_at"`
+	CheckOutAt       *time.Time                  `json:"check_out_at"`
+	CheckInLocation  *AttendanceLocationEvidence `json:"check_in_location"`
+	CheckOutLocation *AttendanceLocationEvidence `json:"check_out_location"`
+	State            AttendanceState             `json:"state"`
+	CanCheckIn       bool                        `json:"can_check_in"`
+	CanCheckOut      bool                        `json:"can_check_out"`
 }
 
 type HistoryItem struct {
-	ID             string          `json:"id"`
-	AttendanceDate string          `json:"attendance_date"`
-	Schedule       WorkSchedule    `json:"schedule"`
-	CheckInAt      time.Time       `json:"check_in_at"`
-	CheckOutAt     *time.Time      `json:"check_out_at"`
-	State          AttendanceState `json:"state"`
+	ID               string                      `json:"id"`
+	AttendanceDate   string                      `json:"attendance_date"`
+	Schedule         WorkSchedule                `json:"schedule"`
+	CheckInAt        time.Time                   `json:"check_in_at"`
+	CheckOutAt       *time.Time                  `json:"check_out_at"`
+	CheckInLocation  *AttendanceLocationEvidence `json:"check_in_location"`
+	CheckOutLocation *AttendanceLocationEvidence `json:"check_out_location"`
+	State            AttendanceState             `json:"state"`
 }
 
 type HistoryList struct {
@@ -77,4 +83,29 @@ type HistoryRow struct {
 type HistoryFilter struct {
 	Page     int
 	PageSize int
+}
+
+type AttendanceLocationRequest struct {
+	Latitude       float64
+	Longitude      float64
+	AccuracyMeters float64
+}
+
+type AttendanceLocationTarget struct {
+	OfficeLocationID   string
+	OfficeLocationName string
+	Latitude           float64
+	Longitude          float64
+	RadiusMeters       int
+	IsActive           bool
+}
+
+type AttendanceLocationEvidence struct {
+	OfficeLocationID   string  `json:"office_location_id"`
+	OfficeLocationName string  `json:"office_location_name"`
+	Latitude           float64 `json:"-"`
+	Longitude          float64 `json:"-"`
+	AccuracyMeters     float64 `json:"accuracy_meters"`
+	DistanceMeters     float64 `json:"distance_meters"`
+	InsideGeofence     bool    `json:"inside_geofence"`
 }

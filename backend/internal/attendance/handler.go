@@ -16,8 +16,8 @@ const maxAttendanceRequestBodyBytes = 1 << 20
 
 type AttendanceService interface {
 	Today(ctx context.Context, claims auth.Claims) (DailyStatus, error)
-	CheckIn(ctx context.Context, claims auth.Claims) (DailyStatus, error)
-	CheckOut(ctx context.Context, claims auth.Claims) (DailyStatus, error)
+	CheckIn(ctx context.Context, claims auth.Claims, location AttendanceLocationRequest) (DailyStatus, error)
+	CheckOut(ctx context.Context, claims auth.Claims, location AttendanceLocationRequest) (DailyStatus, error)
 	History(ctx context.Context, claims auth.Claims, filter HistoryFilter) (HistoryList, error)
 }
 
@@ -53,7 +53,8 @@ func (h Handler) CheckIn(w http.ResponseWriter, r *http.Request) {
 	if !attendanceAllowMethod(w, r, http.MethodPost) {
 		return
 	}
-	if !emptyBody(w, r) {
+	location, ok := decodeAttendanceLocationRequest(w, r)
+	if !ok {
 		return
 	}
 
@@ -63,7 +64,7 @@ func (h Handler) CheckIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := h.service.CheckIn(r.Context(), claims)
+	status, err := h.service.CheckIn(r.Context(), claims, location)
 	if err != nil {
 		h.writeAttendanceError(w, err)
 		return
@@ -76,7 +77,8 @@ func (h Handler) CheckOut(w http.ResponseWriter, r *http.Request) {
 	if !attendanceAllowMethod(w, r, http.MethodPost) {
 		return
 	}
-	if !emptyBody(w, r) {
+	location, ok := decodeAttendanceLocationRequest(w, r)
+	if !ok {
 		return
 	}
 
@@ -86,7 +88,7 @@ func (h Handler) CheckOut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := h.service.CheckOut(r.Context(), claims)
+	status, err := h.service.CheckOut(r.Context(), claims, location)
 	if err != nil {
 		h.writeAttendanceError(w, err)
 		return
@@ -128,10 +130,16 @@ func (h Handler) writeAttendanceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidInput):
 		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
-	case errors.Is(err, ErrInactiveAccount), errors.Is(err, ErrInactiveSchedule):
+	case errors.Is(err, ErrInactiveAccount), errors.Is(err, ErrInactiveSchedule), errors.Is(err, ErrInactiveLocation):
 		attendanceWriteError(w, http.StatusForbidden, "akses absensi tidak diizinkan")
 	case errors.Is(err, ErrScheduleNotFound):
 		attendanceWriteError(w, http.StatusNotFound, "jadwal absensi tidak tersedia")
+	case errors.Is(err, ErrLocationNotFound):
+		attendanceWriteError(w, http.StatusNotFound, "lokasi kerja belum ditugaskan")
+	case errors.Is(err, ErrOutsideGeofence):
+		attendanceWriteError(w, http.StatusForbidden, "pegawai berada di luar radius lokasi kantor")
+	case errors.Is(err, ErrPoorAccuracy):
+		attendanceWriteError(w, http.StatusUnprocessableEntity, "akurasi lokasi belum memenuhi batas")
 	case errors.Is(err, ErrAlreadyCheckedIn):
 		attendanceWriteError(w, http.StatusConflict, "pegawai sudah check-in")
 	case errors.Is(err, ErrNotCheckedIn):
@@ -149,19 +157,33 @@ type attendanceResponse struct {
 	Data    any    `json:"data,omitempty"`
 }
 
-func emptyBody(w http.ResponseWriter, r *http.Request) bool {
+func decodeAttendanceLocationRequest(w http.ResponseWriter, r *http.Request) (AttendanceLocationRequest, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAttendanceRequestBodyBytes)
-	raw, err := io.ReadAll(r.Body)
-	if err != nil {
-		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
-		return false
-	}
-	if strings.TrimSpace(string(raw)) != "" {
-		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
-		return false
-	}
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
 
-	return true
+	var req struct {
+		Latitude       *float64 `json:"latitude"`
+		Longitude      *float64 `json:"longitude"`
+		AccuracyMeters *float64 `json:"accuracy_meters"`
+	}
+	if err := decoder.Decode(&req); err != nil {
+		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
+		return AttendanceLocationRequest{}, false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
+		return AttendanceLocationRequest{}, false
+	}
+	if req.Latitude == nil || req.Longitude == nil || req.AccuracyMeters == nil {
+		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
+		return AttendanceLocationRequest{}, false
+	}
+	return AttendanceLocationRequest{
+		Latitude:       *req.Latitude,
+		Longitude:      *req.Longitude,
+		AccuracyMeters: *req.AccuracyMeters,
+	}, true
 }
 
 func attendanceAllowMethod(w http.ResponseWriter, r *http.Request, method string) bool {
