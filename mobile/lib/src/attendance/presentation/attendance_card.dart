@@ -10,7 +10,6 @@ import '../domain/attendance_failure.dart';
 import '../domain/attendance_models.dart';
 import 'attendance_controller.dart';
 import 'attendance_formatters.dart';
-import 'attendance_history_page.dart';
 
 class AttendanceCard extends StatelessWidget {
   const AttendanceCard({super.key});
@@ -42,12 +41,25 @@ class AttendanceCard extends StatelessWidget {
         children: [
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(10),
+                          child: Icon(Icons.fact_check_outlined),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           'Absensi Hari Ini',
@@ -100,32 +112,153 @@ class AttendanceCard extends StatelessWidget {
                   ),
                   if (controller.errorMessage != null) ...[
                     const SizedBox(height: 12),
-                    Text(
-                      controller.errorMessage!,
-                      style: TextStyle(color: Colors.red.shade700),
+                    _InlineMessage(
+                      message: controller.errorMessage!,
+                      icon: Icons.info_outline_rounded,
                     ),
+                  ],
+                  if (controller.status ==
+                      AttendanceControllerStatus.actionLoading) ...[
+                    const SizedBox(height: 12),
+                    _ActionProgress(step: controller.currentStep),
                   ],
                   const SizedBox(height: 16),
                   _ActionButtons(today: today),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: controller.isBusy
-                        ? null
-                        : () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const AttendanceHistoryPage(),
-                              ),
-                            );
-                          },
-                    icon: const Icon(Icons.history),
-                    label: const Text('Riwayat'),
-                  ),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionProgress extends StatelessWidget {
+  const _ActionProgress({required this.step});
+
+  final AttendanceActionStep? step;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            _ProgressLine(
+              icon: Icons.my_location_outlined,
+              label: 'Mengambil lokasi perangkat',
+              active: step == AttendanceActionStep.location,
+              done: _isAfter(AttendanceActionStep.location),
+            ),
+            const SizedBox(height: 8),
+            _ProgressLine(
+              icon: Icons.face_retouching_natural_outlined,
+              label: 'Memverifikasi keaktifan dan wajah',
+              active: step == AttendanceActionStep.face,
+              done: _isAfter(AttendanceActionStep.face),
+            ),
+            const SizedBox(height: 8),
+            _ProgressLine(
+              icon: Icons.cloud_upload_outlined,
+              label: 'Mengirim absensi ke server',
+              active: step == AttendanceActionStep.submit,
+              done: false,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isAfter(AttendanceActionStep current) {
+    final active = step;
+    if (active == null) {
+      return false;
+    }
+    return active.index > current.index;
+  }
+}
+
+class _ProgressLine extends StatelessWidget {
+  const _ProgressLine({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.done,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = active || done
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Row(
+      children: [
+        if (active)
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: color),
+          )
+        else
+          Icon(done ? Icons.check_circle_rounded : icon, size: 20, color: color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(color: color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineMessage extends StatelessWidget {
+  const _InlineMessage({required this.message, required this.icon});
+
+  final String message;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 18, color: theme.colorScheme.error),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
