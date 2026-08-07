@@ -417,3 +417,47 @@ Semua kolom bukti lokasi nullable agar record lama tetap valid. Untuk record
 baru, backend mengisi evidence check-in/check-out dalam transaksi attendance
 yang sama. Kolom lokasi memiliki FK ke `office_locations`; kolom koordinat,
 accuracy, dan distance memiliki check constraint rentang nilai dasar.
+
+## Face Enrollment Foundation
+
+Migration `000006_create_face_profiles` menambahkan tabel `face_profiles` untuk
+menyimpan satu enrollment wajah milik setiap user. Tabel ini hanya menyimpan
+embedding numerik dan metadata model; tidak menyimpan gambar wajah, base64
+image, frame kamera, atau payload biometrik lain.
+
+### face_profiles
+
+Kolom utama:
+
+- `id UUID PRIMARY KEY`
+- `user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE`
+- `embedding DOUBLE PRECISION[] NOT NULL`
+- `embedding_model VARCHAR(100) NOT NULL`
+- `embedding_version VARCHAR(100) NOT NULL`
+- `status VARCHAR(20) NOT NULL`
+- `enrolled_at TIMESTAMPTZ NULL`
+- `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+- `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`
+
+Constraint:
+
+- `face_profiles_user_unique` menjaga satu user hanya memiliki satu face
+  profile aktif.
+- `face_profiles_embedding_not_empty` menolak array embedding kosong.
+- `face_profiles_embedding_model_not_empty` dan
+  `face_profiles_embedding_version_not_empty` menolak metadata model kosong.
+- `face_profiles_status_allowed` membatasi status tersimpan ke `ENROLLED`.
+- `face_profiles_enrolled_at_required` mewajibkan `enrolled_at` saat status
+  `ENROLLED`.
+
+Reset enrollment menghapus row `face_profiles` milik user. Kondisi
+`NOT_ENROLLED` direpresentasikan sebagai tidak adanya row, bukan embedding
+kosong.
+
+`pgvector` belum diverifikasi tersedia di PostgreSQL lokal karena koneksi
+database membutuhkan password yang tidak tersedia di sesi ini. Karena model
+embedding dan dimensi final belum diputuskan, migration ini tidak hard-code
+`vector(128)`, `vector(512)`, atau ukuran lain. Dimensi divalidasi di service
+berdasarkan registry model backend. Jika nanti project memilih model dan
+memastikan extension `pgvector`, migration lanjutan dapat mengubah storage ke
+tipe `vector(n)` sesuai dimensi model.

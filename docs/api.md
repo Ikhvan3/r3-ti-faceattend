@@ -667,6 +667,75 @@ $Refresh = Invoke-RestMethod `
 Refresh token dirotasi. Token lama tidak boleh dapat dipakai ulang setelah
 refresh berhasil. Database hanya menyimpan hash SHA-256 dari refresh token.
 
+## Face Enrollment Foundation
+
+Endpoint face enrollment berada di backend Golang dan hanya menerima access
+token role `USER`.
+
+Endpoint:
+
+- `GET /api/v1/face/status`
+- `POST /api/v1/face/enroll`
+- `DELETE /api/v1/face/enrollment`
+
+`GET /api/v1/face/status` mengambil `user_id` dari token. Response untuk user
+yang belum enrollment:
+
+```json
+{
+  "status": "ok",
+  "data": {
+    "enrolled": false,
+    "face_status": "NOT_ENROLLED"
+  }
+}
+```
+
+Response untuk user yang sudah enrollment memuat metadata model dan waktu
+enrollment, tetapi tidak pernah memuat embedding:
+
+```json
+{
+  "status": "ok",
+  "data": {
+    "enrolled": true,
+    "face_status": "ENROLLED",
+    "embedding_model": "nama-model",
+    "embedding_version": "versi-model",
+    "enrolled_at": "2026-08-07T01:00:00Z"
+  }
+}
+```
+
+`POST /api/v1/face/enroll` menyimpan embedding untuk user dari token. Request
+tidak menerima `user_id` dari body.
+
+```json
+{
+  "embedding": [0.1, 0.2, 0.3],
+  "embedding_model": "nama-model",
+  "embedding_version": "versi-model"
+}
+```
+
+Backend memvalidasi bahwa akun user masih `ACTIVE`, embedding tidak kosong,
+semua nilai finite, model/version didukung registry backend, dan dimensi
+embedding sama dengan kontrak model. Duplikasi enrollment sebelum reset
+menghasilkan HTTP `409`.
+
+`DELETE /api/v1/face/enrollment` menghapus enrollment milik user dari token.
+Setelah reset, `GET /api/v1/face/status` kembali menampilkan
+`NOT_ENROLLED` dan user dapat enrollment ulang.
+
+Catatan tahap ini:
+
+- Backend belum mengaktifkan model embedding produksi karena pilihan model,
+  versi, lokasi inferensi, dan dimensi belum diputuskan.
+- Embedding tidak boleh dicetak ke log, tidak dikembalikan pada response
+  status/enroll/reset, dan tidak dimasukkan ke pesan error.
+- Endpoint ini belum dipakai untuk verifikasi attendance, liveness, kamera, atau
+  anti-spoofing.
+
 ## Logout
 
 Endpoint:

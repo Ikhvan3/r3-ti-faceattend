@@ -168,6 +168,32 @@ menyimpan evidence lokasi pada attendance record. Tidak ada API maps eksternal,
 background location, atau tracking periodik. GPS spoofing tetap menjadi risiko
 yang perlu mitigasi pada tahap berikutnya.
 
+Untuk fondasi face enrollment:
+
+```text
+Flutter mobile atau client enrollment masa depan
+-> Golang REST API /api/v1/face/*
+-> PostgreSQL face_profiles
+```
+
+Backend mengambil identitas user dari access token role `USER`; request
+enrollment tidak boleh membawa `user_id`. Golang hanya menerima dan menyimpan
+embedding numerik yang sudah dibuat oleh komponen inferensi yang belum
+diputuskan. Golang tidak menjalankan model ML dan tidak menambahkan dependensi
+ML pada tahap ini.
+
+Keputusan model embedding, versi, lokasi inferensi, dan dimensi masih terbuka.
+Karena itu registry model runtime masih kosong sampai project menetapkan
+kontrak model. Service face enrollment sudah menolak model/version yang tidak
+terdaftar, menolak dimensi yang tidak sesuai, dan menolak nilai `NaN` atau
+`Inf`.
+
+Response status/enrollment hanya menampilkan status, metadata model, dan waktu
+enrollment. Embedding tidak dikembalikan ke client, tidak dicetak ke log, dan
+tidak dipakai untuk attendance enforcement pada tahap ini. Face verification,
+liveness, kamera mobile, anti-spoofing, dan enforcement attendance tetap berada
+di tahap berikutnya.
+
 ## Prinsip Teknis
 
 - Server time menjadi sumber waktu absensi yang otoritatif.

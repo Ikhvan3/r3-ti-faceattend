@@ -673,6 +673,50 @@ Keterbatasan: fondasi ini belum mendeteksi GPS spoofing, belum memakai kamera,
 belum melakukan face recognition/liveness, dan belum melakukan background
 location atau tracking periodik.
 
+### Face Enrollment Foundation Backend
+
+Endpoint user:
+
+- `GET /api/v1/face/status`
+- `POST /api/v1/face/enroll`
+- `DELETE /api/v1/face/enrollment`
+
+Alur uji manual dengan PostgreSQL lokal:
+
+1. Jalankan migration sampai `000006`.
+2. Login sebagai pegawai dummy `USER` dengan `account_status` `ACTIVE`.
+3. Panggil `GET /api/v1/face/status`; user tanpa profile harus mendapat
+   `NOT_ENROLLED`.
+4. Panggil `POST /api/v1/face/enroll` dengan `embedding`,
+   `embedding_model`, dan `embedding_version` sesuai registry model backend.
+5. Pastikan response enrollment tidak memuat field `embedding` atau nilai
+   embedding.
+6. Panggil `GET /api/v1/face/status`; user enrolled harus mendapat
+   `ENROLLED`, `embedding_model`, `embedding_version`, dan `enrolled_at`.
+7. Enrollment kedua tanpa reset harus HTTP `409`.
+8. Panggil `DELETE /api/v1/face/enrollment`.
+9. Panggil `GET /api/v1/face/status`; status harus kembali `NOT_ENROLLED`.
+10. Enrollment ulang setelah reset harus diizinkan.
+11. Token `ADMIN` harus ditolak HTTP `403`.
+12. Request dengan `user_id` di body harus ditolak sebagai malformed request.
+13. Embedding kosong, nilai `NaN`/`Inf`, model tidak didukung, atau dimensi
+    tidak sesuai harus ditolak.
+
+Verifikasi pgvector bila kredensial database lokal tersedia:
+
+```powershell
+psql -h localhost -p 5432 -U postgres -d r3_ti_faceattend -c "SELECT extname FROM pg_extension WHERE extname = 'vector';"
+```
+
+Pada tahap ini migration memakai `DOUBLE PRECISION[]`, bukan `vector(n)`,
+karena `pgvector` belum wajib tersedia dan project belum menetapkan model
+embedding beserta dimensinya. Setelah model final dipilih, update registry
+backend dan pertimbangkan migration lanjutan ke `pgvector` bila diperlukan.
+
+Keterbatasan: endpoint ini belum melakukan inference wajah, belum melakukan
+face verification pada attendance, belum liveness, belum kamera mobile, dan
+belum anti-spoofing.
+
 ### Health Check
 
 Endpoint health tersedia di:
