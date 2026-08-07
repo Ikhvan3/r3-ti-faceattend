@@ -115,7 +115,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			locationService := officelocation.NewService(locationRepo, locationRepo, businessLocation)
 			locationHandler := officelocation.NewHandler(locationService)
 			faceRepo := face.NewPostgresRepository(pool)
-			faceService := face.NewService(faceRepo, userRepo, face.EmptyModelRegistry())
+			faceService := face.NewService(faceRepo, userRepo, face.ProductionModelRegistry())
 			faceHandler := face.NewHandler(faceService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))

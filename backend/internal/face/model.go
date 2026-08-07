@@ -41,6 +41,20 @@ type SupportedModel struct {
 	Dimension int
 }
 
+const (
+	FaceNetModelName      = "facenet"
+	FaceNetModelVersion   = "shubham0204-facenet-2020-fp32"
+	FaceNetModelDimension = 128
+)
+
+func ProductionModelRegistry() ModelRegistry {
+	return NewModelRegistry([]SupportedModel{{
+		Name:      FaceNetModelName,
+		Version:   FaceNetModelVersion,
+		Dimension: FaceNetModelDimension,
+	}})
+}
+
 type ModelRegistry struct {
 	models map[string]SupportedModel
 }
