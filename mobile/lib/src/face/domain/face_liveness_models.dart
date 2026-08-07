@@ -87,23 +87,19 @@ class LivenessConfig {
   const LivenessConfig({
     this.openEyeThreshold = 0.60,
     this.closedEyeThreshold = 0.40,
-    this.turnYawThreshold = 14,
-    this.centerYawThreshold = 8,
-    this.maxRollDegrees = 22,
-    this.minFaceBoxRatio = 0.24,
-    // A head turn naturally shifts ML Kit's bounding box toward/outside the
-    // image edge. Allow a small overflow so valid TURN_LEFT / TURN_RIGHT
-    // frames keep reaching the liveness state machine instead of being
-    // treated as a lost face before actionStableDuration can complete.
-    this.edgeMarginRatio = -0.12,
-    this.actionTimeout = const Duration(seconds: 8),
-    this.challengeTimeout = const Duration(seconds: 35),
-    this.faceLostTimeout = const Duration(milliseconds: 1800),
+    this.turnYawThreshold = 13,
+    this.centerYawThreshold = 10,
+    this.maxRollDegrees = 25,
+    this.minFaceBoxRatio = 0.20,
+    this.centerOffsetRatio = 0.24,
+    this.actionTimeout = const Duration(seconds: 10),
+    this.challengeTimeout = const Duration(seconds: 40),
+    this.faceLostTimeout = const Duration(milliseconds: 2200),
     this.multipleFaceGrace = const Duration(milliseconds: 1200),
-    this.trackingMismatchGrace = const Duration(milliseconds: 1500),
-    this.stabilizationDuration = const Duration(milliseconds: 700),
-    this.actionStableDuration = const Duration(milliseconds: 180),
-    this.noisyFrameGrace = const Duration(milliseconds: 450),
+    this.trackingMismatchGrace = const Duration(milliseconds: 1800),
+    this.stabilizationDuration = const Duration(milliseconds: 550),
+    this.actionStableDuration = const Duration(milliseconds: 140),
+    this.noisyFrameGrace = const Duration(milliseconds: 500),
     this.frameThrottle = const Duration(milliseconds: 80),
     this.sampleInterval = const Duration(milliseconds: 650),
   });
@@ -114,7 +110,7 @@ class LivenessConfig {
   final double centerYawThreshold;
   final double maxRollDegrees;
   final double minFaceBoxRatio;
-  final double edgeMarginRatio;
+  final double centerOffsetRatio;
   final Duration actionTimeout;
   final Duration challengeTimeout;
   final Duration faceLostTimeout;
