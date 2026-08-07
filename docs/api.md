@@ -729,8 +729,12 @@ Setelah reset, `GET /api/v1/face/status` kembali menampilkan
 
 Catatan tahap ini:
 
-- Backend belum mengaktifkan model embedding produksi karena pilihan model,
-  versi, lokasi inferensi, dan dimensi belum diputuskan.
+- Backend menerima model embedding produksi berikut:
+  - `embedding_model`: `facenet`
+  - `embedding_version`: `shubham0204-facenet-2020-fp32`
+  - dimensi embedding: `128`
+  - file Flutter: `assets/models/facenet.tflite`
+- Model lain, versi lain, atau dimensi selain `128` ditolak.
 - Embedding tidak boleh dicetak ke log, tidak dikembalikan pada response
   status/enroll/reset, dan tidak dimasukkan ke pesan error.
 - Endpoint ini belum dipakai untuk verifikasi attendance, liveness, kamera, atau

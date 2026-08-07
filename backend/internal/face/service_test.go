@@ -139,6 +139,44 @@ func TestServiceEnrollRequiresActiveUser(t *testing.T) {
 	}
 }
 
+func TestProductionModelRegistryEnrollmentRules(t *testing.T) {
+	t.Run("registered model accepted", func(t *testing.T) {
+		service := newProductionTestService(newFakeRepository())
+		_, err := service.Enroll(context.Background(), userClaims(testUserID), productionInput(FaceNetModelDimension))
+		if err != nil {
+			t.Fatalf("Enroll() error = %v", err)
+		}
+	})
+
+	t.Run("wrong model rejected", func(t *testing.T) {
+		service := newProductionTestService(newFakeRepository())
+		input := productionInput(FaceNetModelDimension)
+		input.EmbeddingModel = "other-model"
+		_, err := service.Enroll(context.Background(), userClaims(testUserID), input)
+		if !errors.Is(err, ErrUnsupportedModel) {
+			t.Fatalf("Enroll() error = %v, want %v", err, ErrUnsupportedModel)
+		}
+	})
+
+	t.Run("wrong version rejected", func(t *testing.T) {
+		service := newProductionTestService(newFakeRepository())
+		input := productionInput(FaceNetModelDimension)
+		input.EmbeddingVersion = "other-version"
+		_, err := service.Enroll(context.Background(), userClaims(testUserID), input)
+		if !errors.Is(err, ErrUnsupportedModel) {
+			t.Fatalf("Enroll() error = %v, want %v", err, ErrUnsupportedModel)
+		}
+	})
+
+	t.Run("wrong dimension rejected", func(t *testing.T) {
+		service := newProductionTestService(newFakeRepository())
+		_, err := service.Enroll(context.Background(), userClaims(testUserID), productionInput(FaceNetModelDimension-1))
+		if !errors.Is(err, ErrInvalidDimension) {
+			t.Fatalf("Enroll() error = %v, want %v", err, ErrInvalidDimension)
+		}
+	})
+}
+
 func newTestService(repo *fakeRepository) Service {
 	service := NewService(repo, repo, NewModelRegistry([]SupportedModel{{
 		Name:      "test-face-model",
@@ -149,8 +187,26 @@ func newTestService(repo *fakeRepository) Service {
 	return service
 }
 
+func newProductionTestService(repo *fakeRepository) Service {
+	service := NewService(repo, repo, ProductionModelRegistry())
+	service.now = func() time.Time { return time.Date(2026, 8, 7, 1, 0, 0, 0, time.UTC) }
+	return service
+}
+
 func validInput() EnrollmentInput {
 	return EnrollmentInput{Embedding: []float64{0.1, 0.2, 0.3}, EmbeddingModel: "test-face-model", EmbeddingVersion: "v1"}
+}
+
+func productionInput(dimension int) EnrollmentInput {
+	embedding := make([]float64, dimension)
+	for i := range embedding {
+		embedding[i] = 1 / float64(dimension)
+	}
+	return EnrollmentInput{
+		Embedding:        embedding,
+		EmbeddingModel:   FaceNetModelName,
+		EmbeddingVersion: FaceNetModelVersion,
+	}
 }
 
 func userClaims(userID string) auth.Claims {
