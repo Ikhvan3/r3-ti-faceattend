@@ -2,6 +2,8 @@ package config
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -156,5 +158,36 @@ func TestLoadReadsFaceVerificationThreshold(t *testing.T) {
 
 	if cfg.FaceVerification.Threshold != 0.82 {
 		t.Fatalf("Threshold = %v, want 0.82", cfg.FaceVerification.Threshold)
+	}
+}
+
+func TestLoadDotEnvReadsFileWithoutOverridingExistingEnv(t *testing.T) {
+	t.Setenv("AUTH_ACCESS_TOKEN_SECRET", "from-shell")
+	envPath := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(
+		envPath,
+		[]byte("AUTH_ACCESS_TOKEN_SECRET=from-file\nDB_HOST=db.local\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := LoadDotEnv(envPath); err != nil {
+		t.Fatalf("LoadDotEnv() error = %v", err)
+	}
+
+	if got := os.Getenv("AUTH_ACCESS_TOKEN_SECRET"); got != "from-shell" {
+		t.Fatalf("AUTH_ACCESS_TOKEN_SECRET = %q, want from-shell", got)
+	}
+	if got := os.Getenv("DB_HOST"); got != "db.local" {
+		t.Fatalf("DB_HOST = %q, want db.local", got)
+	}
+}
+
+func TestLoadDotEnvIgnoresMissingFile(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+
+	if err := LoadDotEnv(envPath); err != nil {
+		t.Fatalf("LoadDotEnv() error = %v", err)
 	}
 }
