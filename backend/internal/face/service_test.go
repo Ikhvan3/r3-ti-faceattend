@@ -283,6 +283,43 @@ func TestServiceVerifyRequiresActiveUserAndOwnClaims(t *testing.T) {
 	}
 }
 
+func TestServiceVerifyForAttendanceCreatesGrantOnlyOnMatch(t *testing.T) {
+	repo := enrolledFakeRepository([]float64{1, 0, 0})
+	service := newTestService(repo)
+
+	result, err := service.VerifyForAttendance(context.Background(), userClaims(testUserID), AttendanceVerificationInput{
+		Purpose:          PurposeCheckIn,
+		Embedding:        []float64{1, 0, 0},
+		EmbeddingModel:   "test-face-model",
+		EmbeddingVersion: "v1",
+	})
+	if err != nil {
+		t.Fatalf("VerifyForAttendance() error = %v", err)
+	}
+	if result.VerificationGrant == "" || result.ExpiresAt.IsZero() {
+		t.Fatalf("grant response = %+v", result)
+	}
+	if len(repo.grants) != 1 {
+		t.Fatalf("stored grants = %d, want 1", len(repo.grants))
+	}
+	if repo.grants[0].TokenHash == "" || repo.grants[0].TokenHash == result.VerificationGrant {
+		t.Fatal("grant token hash was not stored securely")
+	}
+
+	_, err = service.VerifyForAttendance(context.Background(), userClaims(testUserID), AttendanceVerificationInput{
+		Purpose:          PurposeCheckOut,
+		Embedding:        []float64{0, 1, 0},
+		EmbeddingModel:   "test-face-model",
+		EmbeddingVersion: "v1",
+	})
+	if !errors.Is(err, ErrVerificationMismatch) {
+		t.Fatalf("mismatch error = %v, want %v", err, ErrVerificationMismatch)
+	}
+	if len(repo.grants) != 1 {
+		t.Fatalf("stored grants after mismatch = %d, want 1", len(repo.grants))
+	}
+}
+
 func TestProductionModelRegistryEnrollmentRules(t *testing.T) {
 	t.Run("registered model accepted", func(t *testing.T) {
 		service := newProductionTestService(newFakeRepository())
@@ -328,13 +365,13 @@ func newTestService(repo *fakeRepository) Service {
 		Dimension:        3,
 		SimilarityMetric: SimilarityMetricCosine,
 		NormalizeInput:   true,
-	}}), 0.95)
+	}}), 0.95, 2*time.Minute)
 	service.now = func() time.Time { return time.Date(2026, 8, 7, 1, 0, 0, 0, time.UTC) }
 	return service
 }
 
 func newProductionTestService(repo *fakeRepository) Service {
-	service := NewService(repo, repo, ProductionModelRegistry(), 0.95)
+	service := NewService(repo, repo, ProductionModelRegistry(), 0.95, 2*time.Minute)
 	service.now = func() time.Time { return time.Date(2026, 8, 7, 1, 0, 0, 0, time.UTC) }
 	return service
 }
@@ -395,6 +432,7 @@ func adminClaims() auth.Claims {
 type fakeRepository struct {
 	profiles map[string]FaceProfile
 	users    map[string]user.User
+	grants   []VerificationGrant
 }
 
 func newFakeRepository() *fakeRepository {
@@ -403,6 +441,7 @@ func newFakeRepository() *fakeRepository {
 		users: map[string]user.User{
 			testUserID: {ID: testUserID, Role: user.RoleUser, AccountStatus: user.AccountStatusActive},
 		},
+		grants: []VerificationGrant{},
 	}
 }
 
@@ -433,6 +472,11 @@ func (r *fakeRepository) DeleteByUserID(_ context.Context, userID string) error 
 		return ErrProfileNotFound
 	}
 	delete(r.profiles, userID)
+	return nil
+}
+
+func (r *fakeRepository) CreateVerificationGrant(_ context.Context, grant VerificationGrant) error {
+	r.grants = append(r.grants, grant)
 	return nil
 }
 

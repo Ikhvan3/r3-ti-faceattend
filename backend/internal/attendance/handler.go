@@ -16,8 +16,8 @@ const maxAttendanceRequestBodyBytes = 1 << 20
 
 type AttendanceService interface {
 	Today(ctx context.Context, claims auth.Claims) (DailyStatus, error)
-	CheckIn(ctx context.Context, claims auth.Claims, location AttendanceLocationRequest) (DailyStatus, error)
-	CheckOut(ctx context.Context, claims auth.Claims, location AttendanceLocationRequest) (DailyStatus, error)
+	CheckIn(ctx context.Context, claims auth.Claims, request AttendanceLocationRequest) (DailyStatus, error)
+	CheckOut(ctx context.Context, claims auth.Claims, request AttendanceLocationRequest) (DailyStatus, error)
 	History(ctx context.Context, claims auth.Claims, filter HistoryFilter) (HistoryList, error)
 }
 
@@ -53,7 +53,7 @@ func (h Handler) CheckIn(w http.ResponseWriter, r *http.Request) {
 	if !attendanceAllowMethod(w, r, http.MethodPost) {
 		return
 	}
-	location, ok := decodeAttendanceLocationRequest(w, r)
+	request, ok := decodeAttendanceMutationRequest(w, r)
 	if !ok {
 		return
 	}
@@ -64,7 +64,7 @@ func (h Handler) CheckIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := h.service.CheckIn(r.Context(), claims, location)
+	status, err := h.service.CheckIn(r.Context(), claims, request)
 	if err != nil {
 		h.writeAttendanceError(w, err)
 		return
@@ -77,7 +77,7 @@ func (h Handler) CheckOut(w http.ResponseWriter, r *http.Request) {
 	if !attendanceAllowMethod(w, r, http.MethodPost) {
 		return
 	}
-	location, ok := decodeAttendanceLocationRequest(w, r)
+	request, ok := decodeAttendanceMutationRequest(w, r)
 	if !ok {
 		return
 	}
@@ -88,7 +88,7 @@ func (h Handler) CheckOut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := h.service.CheckOut(r.Context(), claims, location)
+	status, err := h.service.CheckOut(r.Context(), claims, request)
 	if err != nil {
 		h.writeAttendanceError(w, err)
 		return
@@ -140,6 +140,12 @@ func (h Handler) writeAttendanceError(w http.ResponseWriter, err error) {
 		attendanceWriteError(w, http.StatusForbidden, "pegawai berada di luar radius lokasi kantor")
 	case errors.Is(err, ErrPoorAccuracy):
 		attendanceWriteError(w, http.StatusUnprocessableEntity, "akurasi lokasi belum memenuhi batas")
+	case errors.Is(err, ErrMissingGrant), errors.Is(err, ErrInvalidGrant):
+		attendanceWriteError(w, http.StatusForbidden, "verifikasi wajah tidak valid")
+	case errors.Is(err, ErrExpiredGrant):
+		attendanceWriteError(w, http.StatusForbidden, "verifikasi wajah kedaluwarsa")
+	case errors.Is(err, ErrConsumedGrant):
+		attendanceWriteError(w, http.StatusForbidden, "verifikasi wajah sudah digunakan")
 	case errors.Is(err, ErrAlreadyCheckedIn):
 		attendanceWriteError(w, http.StatusConflict, "pegawai sudah check-in")
 	case errors.Is(err, ErrNotCheckedIn):
@@ -157,15 +163,16 @@ type attendanceResponse struct {
 	Data    any    `json:"data,omitempty"`
 }
 
-func decodeAttendanceLocationRequest(w http.ResponseWriter, r *http.Request) (AttendanceLocationRequest, bool) {
+func decodeAttendanceMutationRequest(w http.ResponseWriter, r *http.Request) (AttendanceLocationRequest, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAttendanceRequestBodyBytes)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 
 	var req struct {
-		Latitude       *float64 `json:"latitude"`
-		Longitude      *float64 `json:"longitude"`
-		AccuracyMeters *float64 `json:"accuracy_meters"`
+		Latitude          *float64 `json:"latitude"`
+		Longitude         *float64 `json:"longitude"`
+		AccuracyMeters    *float64 `json:"accuracy_meters"`
+		VerificationGrant string   `json:"verification_grant"`
 	}
 	if err := decoder.Decode(&req); err != nil {
 		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
@@ -179,10 +186,15 @@ func decodeAttendanceLocationRequest(w http.ResponseWriter, r *http.Request) (At
 		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
 		return AttendanceLocationRequest{}, false
 	}
+	if strings.TrimSpace(req.VerificationGrant) == "" {
+		attendanceWriteError(w, http.StatusBadRequest, "request tidak valid")
+		return AttendanceLocationRequest{}, false
+	}
 	return AttendanceLocationRequest{
-		Latitude:       *req.Latitude,
-		Longitude:      *req.Longitude,
-		AccuracyMeters: *req.AccuracyMeters,
+		Latitude:          *req.Latitude,
+		Longitude:         *req.Longitude,
+		AccuracyMeters:    *req.AccuracyMeters,
+		VerificationGrant: strings.TrimSpace(req.VerificationGrant),
 	}, true
 }
 

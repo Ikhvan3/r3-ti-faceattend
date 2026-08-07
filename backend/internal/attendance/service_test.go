@@ -403,9 +403,10 @@ func newTestService(repo *fakeAttendanceRepository, now time.Time) Service {
 
 func validLocationRequest() AttendanceLocationRequest {
 	return AttendanceLocationRequest{
-		Latitude:       -6.98946,
-		Longitude:      110.416735,
-		AccuracyMeters: 12.5,
+		Latitude:          -6.98946,
+		Longitude:         110.416735,
+		AccuracyMeters:    12.5,
+		VerificationGrant: "valid-grant",
 	}
 }
 
@@ -487,6 +488,10 @@ func (r *fakeAttendanceRepository) CurrentOfficeLocation(_ context.Context, _ st
 }
 
 func (r *fakeAttendanceRepository) CheckIn(_ context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
+	return r.CheckInWithGrant(context.Background(), userID, attendanceDate, now, recordID, evidence, "")
+}
+
+func (r *fakeAttendanceRepository) CheckInWithGrant(_ context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence, _ string) (AttendanceRecord, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -507,6 +512,10 @@ func (r *fakeAttendanceRepository) CheckIn(_ context.Context, userID string, att
 }
 
 func (r *fakeAttendanceRepository) CheckOut(_ context.Context, _ string, _ time.Time, now time.Time, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
+	return r.CheckOutWithGrant(context.Background(), "", time.Time{}, now, evidence, "")
+}
+
+func (r *fakeAttendanceRepository) CheckOutWithGrant(_ context.Context, _ string, _ time.Time, now time.Time, evidence AttendanceLocationEvidence, _ string) (AttendanceRecord, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

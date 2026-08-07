@@ -84,6 +84,19 @@ func (r *PostgresRepository) DeleteByUserID(ctx context.Context, userID string) 
 	return nil
 }
 
+func (r *PostgresRepository) CreateVerificationGrant(ctx context.Context, grant VerificationGrant) error {
+	const query = `
+		INSERT INTO face_verification_grants (
+			id, user_id, purpose, token_hash, expires_at, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+	if _, err := r.pool.Exec(ctx, query, grant.ID, grant.UserID, grant.Purpose, grant.TokenHash, grant.ExpiresAt, grant.CreatedAt); err != nil {
+		return sanitizePostgresError(err)
+	}
+	return nil
+}
+
 func scanProfile(row pgx.Row) (FaceProfile, error) {
 	var profile FaceProfile
 	err := row.Scan(

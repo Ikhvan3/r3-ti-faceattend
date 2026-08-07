@@ -72,11 +72,25 @@ func (r *PostgresRepository) CurrentOfficeLocation(ctx context.Context, userID s
 }
 
 func (r *PostgresRepository) CheckIn(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
+	return r.checkIn(ctx, userID, attendanceDate, now, recordID, evidence, "")
+}
+
+func (r *PostgresRepository) CheckInWithGrant(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence, grantHash string) (AttendanceRecord, error) {
+	return r.checkIn(ctx, userID, attendanceDate, now, recordID, evidence, grantHash)
+}
+
+func (r *PostgresRepository) checkIn(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence, grantHash string) (AttendanceRecord, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return AttendanceRecord{}, ErrInternal
 	}
 	defer rollback(ctx, tx)
+
+	if grantHash != "" {
+		if err := validateAndLockGrant(ctx, tx, userID, "CHECK_IN", grantHash, now); err != nil {
+			return AttendanceRecord{}, err
+		}
+	}
 
 	schedule, err := r.findSchedule(ctx, tx, userID, attendanceDate)
 	if err != nil {
@@ -112,6 +126,11 @@ func (r *PostgresRepository) CheckIn(ctx context.Context, userID string, attenda
 	if err != nil {
 		return AttendanceRecord{}, sanitizeAttendanceError(err)
 	}
+	if grantHash != "" {
+		if err := consumeGrant(ctx, tx, grantHash, now); err != nil {
+			return AttendanceRecord{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return AttendanceRecord{}, ErrInternal
 	}
@@ -120,11 +139,25 @@ func (r *PostgresRepository) CheckIn(ctx context.Context, userID string, attenda
 }
 
 func (r *PostgresRepository) CheckOut(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
+	return r.checkOut(ctx, userID, attendanceDate, now, evidence, "")
+}
+
+func (r *PostgresRepository) CheckOutWithGrant(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, evidence AttendanceLocationEvidence, grantHash string) (AttendanceRecord, error) {
+	return r.checkOut(ctx, userID, attendanceDate, now, evidence, grantHash)
+}
+
+func (r *PostgresRepository) checkOut(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, evidence AttendanceLocationEvidence, grantHash string) (AttendanceRecord, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return AttendanceRecord{}, ErrInternal
 	}
 	defer rollback(ctx, tx)
+
+	if grantHash != "" {
+		if err := validateAndLockGrant(ctx, tx, userID, "CHECK_OUT", grantHash, now); err != nil {
+			return AttendanceRecord{}, err
+		}
+	}
 
 	const lockQuery = `
 		SELECT ar.id, ar.user_id, ar.schedule_id, ar.attendance_date, ar.check_in_at, ar.check_out_at,
@@ -176,11 +209,57 @@ func (r *PostgresRepository) CheckOut(ctx context.Context, userID string, attend
 	if err != nil {
 		return AttendanceRecord{}, sanitizeAttendanceError(err)
 	}
+	if grantHash != "" {
+		if err := consumeGrant(ctx, tx, grantHash, now); err != nil {
+			return AttendanceRecord{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return AttendanceRecord{}, ErrInternal
 	}
 
 	return r.findRecordByID(ctx, r.pool, updatedID)
+}
+
+func validateAndLockGrant(ctx context.Context, tx pgx.Tx, userID string, purpose string, grantHash string, now time.Time) error {
+	const query = `
+		SELECT user_id, purpose, expires_at, consumed_at
+		FROM face_verification_grants
+		WHERE token_hash = $1
+		FOR UPDATE
+	`
+	var storedUserID string
+	var storedPurpose string
+	var expiresAt time.Time
+	var consumedAt *time.Time
+	err := tx.QueryRow(ctx, query, grantHash).Scan(&storedUserID, &storedPurpose, &expiresAt, &consumedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrInvalidGrant
+	}
+	if err != nil {
+		return sanitizeAttendanceError(err)
+	}
+	if storedUserID != userID || storedPurpose != purpose {
+		return ErrInvalidGrant
+	}
+	if consumedAt != nil {
+		return ErrConsumedGrant
+	}
+	if !now.Before(expiresAt) {
+		return ErrExpiredGrant
+	}
+	return nil
+}
+
+func consumeGrant(ctx context.Context, tx pgx.Tx, grantHash string, now time.Time) error {
+	tag, err := tx.Exec(ctx, `UPDATE face_verification_grants SET consumed_at = $2 WHERE token_hash = $1 AND consumed_at IS NULL`, grantHash, now)
+	if err != nil {
+		return sanitizeAttendanceError(err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ErrConsumedGrant
+	}
+	return nil
 }
 
 func (r *PostgresRepository) ListHistory(ctx context.Context, userID string, filter HistoryFilter) ([]HistoryRow, error) {

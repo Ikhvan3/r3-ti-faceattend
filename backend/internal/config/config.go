@@ -18,6 +18,7 @@ type Config struct {
 	Auth             AuthConfig
 	Geofence         GeofenceConfig
 	FaceVerification FaceVerificationConfig
+	FaceAttendance   FaceAttendanceConfig
 }
 
 type DatabaseConfig struct {
@@ -45,6 +46,10 @@ type FaceVerificationConfig struct {
 	Threshold float64
 }
 
+type FaceAttendanceConfig struct {
+	GrantTTL time.Duration
+}
+
 func Load() Config {
 	return Config{
 		AppEnv:           env("APP_ENV", "local"),
@@ -70,6 +75,9 @@ func Load() Config {
 		},
 		FaceVerification: FaceVerificationConfig{
 			Threshold: envRequiredFloat("FACE_VERIFICATION_THRESHOLD"),
+		},
+		FaceAttendance: FaceAttendanceConfig{
+			GrantTTL: time.Duration(envInt("FACE_ATTENDANCE_GRANT_TTL_SECONDS", 120)) * time.Second,
 		},
 	}
 }
@@ -114,6 +122,14 @@ func (c GeofenceConfig) Validate() error {
 func (c FaceVerificationConfig) Validate() error {
 	if math.IsNaN(c.Threshold) || math.IsInf(c.Threshold, 0) || c.Threshold < -1 || c.Threshold > 1 {
 		return errors.New("FACE_VERIFICATION_THRESHOLD is required and must be finite between -1 and 1")
+	}
+
+	return nil
+}
+
+func (c FaceAttendanceConfig) Validate() error {
+	if c.GrantTTL <= 0 {
+		return errors.New("FACE_ATTENDANCE_GRANT_TTL_SECONDS must be positive")
 	}
 
 	return nil

@@ -168,7 +168,7 @@ func TestHandlerPassesLocationRequestToService(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d, body=%s", response.Code, http.StatusCreated, response.Body.String())
 	}
-	if service.lastLocation.Latitude != -6.98946 || service.lastLocation.Longitude != 110.416735 || service.lastLocation.AccuracyMeters != 12.5 {
+	if service.lastLocation.Latitude != -6.98946 || service.lastLocation.Longitude != 110.416735 || service.lastLocation.AccuracyMeters != 12.5 || service.lastLocation.VerificationGrant != "valid-grant" {
 		t.Fatalf("location request = %+v", service.lastLocation)
 	}
 }
@@ -294,7 +294,7 @@ func testSchedule() WorkSchedule {
 }
 
 func validLocationJSON() string {
-	return `{"latitude":-6.98946,"longitude":110.416735,"accuracy_meters":12.5}`
+	return `{"latitude":-6.98946,"longitude":110.416735,"accuracy_meters":12.5,"verification_grant":"valid-grant"}`
 }
 
 func userHTTPClaims() auth.Claims {

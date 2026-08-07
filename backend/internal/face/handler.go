@@ -16,6 +16,7 @@ type HTTPService interface {
 	Status(ctx context.Context, claims auth.Claims) (StatusResponse, error)
 	Enroll(ctx context.Context, claims auth.Claims, input EnrollmentInput) (StatusResponse, error)
 	Verify(ctx context.Context, claims auth.Claims, input VerificationInput) (VerificationResponse, error)
+	VerifyForAttendance(ctx context.Context, claims auth.Claims, input AttendanceVerificationInput) (AttendanceVerificationResponse, error)
 	Reset(ctx context.Context, claims auth.Claims) error
 }
 
@@ -102,6 +103,37 @@ func (h Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response{Status: "ok", Data: result})
 }
 
+func (h Handler) VerifyForAttendance(w http.ResponseWriter, r *http.Request) {
+	if !allowMethod(w, r, http.MethodPost) {
+		return
+	}
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "token tidak valid")
+		return
+	}
+	var req struct {
+		Purpose          AttendanceVerificationPurpose `json:"purpose"`
+		Embedding        []float64                     `json:"embedding"`
+		EmbeddingModel   string                        `json:"embedding_model"`
+		EmbeddingVersion string                        `json:"embedding_version"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	result, err := h.service.VerifyForAttendance(r.Context(), claims, AttendanceVerificationInput{
+		Purpose:          req.Purpose,
+		Embedding:        req.Embedding,
+		EmbeddingModel:   req.EmbeddingModel,
+		EmbeddingVersion: req.EmbeddingVersion,
+	})
+	if err != nil {
+		h.writeFaceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response{Status: "ok", Data: result})
+}
+
 func (h Handler) Enrollment(w http.ResponseWriter, r *http.Request) {
 	if !allowMethod(w, r, http.MethodDelete) {
 		return
@@ -126,6 +158,8 @@ func (h Handler) writeFaceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "akses enrollment wajah tidak diizinkan")
 	case errors.Is(err, ErrNotEnrolled):
 		writeError(w, http.StatusConflict, "wajah belum terdaftar")
+	case errors.Is(err, ErrVerificationMismatch):
+		writeError(w, http.StatusForbidden, "wajah tidak sesuai dengan data yang terdaftar")
 	case errors.Is(err, ErrProfileNotFound):
 		writeError(w, http.StatusNotFound, "enrollment wajah tidak ditemukan")
 	case errors.Is(err, ErrAlreadyEnrolled):

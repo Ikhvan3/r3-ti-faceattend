@@ -33,8 +33,36 @@ type VerificationInput struct {
 	EmbeddingVersion string
 }
 
+type AttendanceVerificationPurpose string
+
+const (
+	PurposeCheckIn  AttendanceVerificationPurpose = "CHECK_IN"
+	PurposeCheckOut AttendanceVerificationPurpose = "CHECK_OUT"
+)
+
+type AttendanceVerificationInput struct {
+	Purpose          AttendanceVerificationPurpose
+	Embedding        []float64
+	EmbeddingModel   string
+	EmbeddingVersion string
+}
+
 type VerificationResponse struct {
 	Verified bool `json:"verified"`
+}
+
+type AttendanceVerificationResponse struct {
+	VerificationGrant string    `json:"verification_grant"`
+	ExpiresAt         time.Time `json:"expires_at"`
+}
+
+type VerificationGrant struct {
+	ID        string
+	UserID    string
+	Purpose   AttendanceVerificationPurpose
+	TokenHash string
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type SimilarityMetric string
