@@ -708,14 +708,44 @@ Verifikasi pgvector bila kredensial database lokal tersedia:
 psql -h localhost -p 5432 -U postgres -d r3_ti_faceattend -c "SELECT extname FROM pg_extension WHERE extname = 'vector';"
 ```
 
-Pada tahap ini migration memakai `DOUBLE PRECISION[]`, bukan `vector(n)`,
-karena `pgvector` belum wajib tersedia dan project belum menetapkan model
-embedding beserta dimensinya. Setelah model final dipilih, update registry
-backend dan pertimbangkan migration lanjutan ke `pgvector` bila diperlukan.
+Model enrollment mobile:
 
-Keterbatasan: endpoint ini belum melakukan inference wajah, belum melakukan
-face verification pada attendance, belum liveness, belum kamera mobile, dan
-belum anti-spoofing.
+- Model identifier: `facenet`
+- Version: `shubham0204-facenet-2020-fp32`
+- File: `mobile/assets/models/facenet.tflite`
+- SHA-256:
+  `D7C1F7F130376982C7004920DDC41925AC2E5AECF6522F476C8BBB3669DB7013`
+- Source: `shubham0204/FaceRecognition_With_FaceNet_Android`
+- License: Apache-2.0, disimpan di
+  `mobile/assets/models/facenet.APACHE-2.0.txt`
+- Input tensor nyata: `[1,160,160,3]` `FLOAT32`
+- Output tensor nyata: `[1,128]` `FLOAT32`
+
+Preprocessing Flutter:
+
+1. Ambil capture sementara dari kamera depan.
+2. Deteksi wajah dengan ML Kit.
+3. Terima hanya tepat satu wajah.
+4. Tolak wajah terlalu kecil, terlalu dekat tepi frame, atau pose terlalu
+   menyamping/miring.
+5. Bake orientation gambar.
+6. Crop bounding box wajah dengan margin.
+7. Resize ke `160x160`.
+8. Gunakan channel RGB.
+9. Normalisasi pixel ke `(pixel - 127.5) / 127.5`.
+10. Jalankan TFLite.
+11. Validasi output finite dan berdimensi `128`.
+12. L2 normalize setiap sample.
+13. Ambil target awal `5` sample dengan interval.
+14. Average element-wise dan L2 normalize hasil final.
+
+Pada tahap ini migration tetap memakai `DOUBLE PRECISION[]`, bukan `vector(n)`.
+Setelah kebutuhan similarity search backend jelas, pertimbangkan migration
+lanjutan ke `pgvector`.
+
+Keterbatasan: endpoint dan mobile enrollment ini belum melakukan face
+verification pada attendance, belum liveness, belum anti-spoofing, dan
+enrollment belum diwajibkan saat check-in/check-out.
 
 ### Health Check
 

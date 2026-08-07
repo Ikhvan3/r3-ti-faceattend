@@ -182,11 +182,30 @@ embedding numerik yang sudah dibuat oleh komponen inferensi yang belum
 diputuskan. Golang tidak menjalankan model ML dan tidak menambahkan dependensi
 ML pada tahap ini.
 
-Keputusan model embedding, versi, lokasi inferensi, dan dimensi masih terbuka.
-Karena itu registry model runtime masih kosong sampai project menetapkan
-kontrak model. Service face enrollment sudah menolak model/version yang tidak
-terdaftar, menolak dimensi yang tidak sesuai, dan menolak nilai `NaN` atau
-`Inf`.
+Mobile memakai model TFLite `facenet.tflite` dari project open-source
+`shubham0204/FaceRecognition_With_FaceNet_Android` berlisensi Apache-2.0.
+Model identifier backend adalah `facenet`, version
+`shubham0204-facenet-2020-fp32`, input tensor `[1,160,160,3]` `FLOAT32`, dan
+output tensor `[1,128]` `FLOAT32`. Service face enrollment menolak
+model/version yang tidak terdaftar, menolak dimensi selain `128`, dan menolak
+nilai `NaN` atau `Inf`.
+
+Pipeline Flutter:
+
+```text
+Camera preview
+-> capture sample sementara
+-> ML Kit face detection
+-> quality checks
+-> crop wajah + margin
+-> resize 160x160
+-> RGB float32 normalization (pixel - 127.5) / 127.5
+-> TFLite FaceNet embedding
+-> L2 normalize per sample
+-> average 5 sample
+-> L2 normalize hasil final
+-> POST /api/v1/face/enroll
+```
 
 Response status/enrollment hanya menampilkan status, metadata model, dan waktu
 enrollment. Embedding tidak dikembalikan ke client, tidak dicetak ke log, dan

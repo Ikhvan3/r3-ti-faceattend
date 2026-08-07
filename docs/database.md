@@ -454,10 +454,10 @@ Reset enrollment menghapus row `face_profiles` milik user. Kondisi
 `NOT_ENROLLED` direpresentasikan sebagai tidak adanya row, bukan embedding
 kosong.
 
-`pgvector` belum diverifikasi tersedia di PostgreSQL lokal karena koneksi
-database membutuhkan password yang tidak tersedia di sesi ini. Karena model
-embedding dan dimensi final belum diputuskan, migration ini tidak hard-code
-`vector(128)`, `vector(512)`, atau ukuran lain. Dimensi divalidasi di service
-berdasarkan registry model backend. Jika nanti project memilih model dan
-memastikan extension `pgvector`, migration lanjutan dapat mengubah storage ke
-tipe `vector(n)` sesuai dimensi model.
+`pgvector` belum menjadi dependency schema tahap ini. Model enrollment mobile
+yang dipakai adalah `facenet` version `shubham0204-facenet-2020-fp32` dengan
+dimensi `128`, dan dimensi tersebut divalidasi di service berdasarkan registry
+model backend. Migration tetap memakai `DOUBLE PRECISION[]` agar tidak mengubah
+schema `000006`; jika nanti backend membutuhkan similarity search, migration
+lanjutan dapat mengubah storage ke tipe `vector(128)` setelah extension
+`pgvector` diverifikasi tersedia.
