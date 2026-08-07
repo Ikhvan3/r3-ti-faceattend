@@ -747,6 +747,55 @@ Keterbatasan: endpoint dan mobile enrollment ini belum melakukan face
 verification pada attendance, belum liveness, belum anti-spoofing, dan
 enrollment belum diwajibkan saat check-in/check-out.
 
+### Face Verification Foundation
+
+Backend:
+
+1. Isi `FACE_VERIFICATION_THRESHOLD` di environment backend. Nilai ini wajib,
+   harus finite, dan berada dalam range cosine similarity `[-1,1]`.
+2. Jalankan API dengan user development yang sudah memiliki row `face_profiles`
+   berstatus `ENROLLED`.
+3. Panggil `GET /api/v1/face/status` memakai JWT USER dan pastikan response
+   `ENROLLED`.
+4. Panggil `POST /api/v1/face/verify` dengan `embedding`,
+   `embedding_model`, dan `embedding_version` dari pipeline Flutter yang sama
+   dengan enrollment.
+5. Pastikan response hanya memuat `verified`, bukan embedding, threshold,
+   similarity score, SQL detail, atau data internal.
+6. Candidate mismatch tetap harus menghasilkan HTTP `200` dengan
+   `verified: false`.
+7. Wrong dimension, wrong model/version, `NaN`, `Inf`, zero vector, unknown
+   field, atau malformed JSON harus ditolak.
+
+Kalibrasi threshold:
+
+- Metric saat ini adalah cosine similarity.
+- Source model FaceNet Android menggunakan embedding 128 dimensi dan membahas
+  cosine similarity/L2 distance untuk membandingkan embedding.
+- Repository ini belum menyimpan hasil pengujian threshold yang cukup untuk
+  default yang dapat dipertanggungjawabkan.
+- Gunakan data development dari user yang sama yang sudah enrollment, lalu uji
+  beberapa capture valid orang yang sama dan beberapa dummy/candidate berbeda.
+  Pilih threshold setelah mengamati false rejection dan false acceptance.
+- Flutter tidak boleh mengatur, mengetahui, atau mengirim threshold.
+
+Flutter:
+
+1. Login sebagai USER.
+2. Pastikan Home face card menampilkan `Terdaftar`.
+3. Tekan `Uji Verifikasi Wajah`.
+4. Kamera depan harus tampil.
+5. Flow verification memakai quality gate enrollment: exactly one face, ukuran
+   cukup, posisi dalam area, pose diterima, dan frame valid.
+6. Candidate embedding hanya berada di memory selama proses verifikasi dan
+   dikirim ke backend.
+7. Hasil `verified: true` tampil sebagai `Wajah berhasil diverifikasi.`
+8. Hasil `verified: false` tampil sebagai
+   `Wajah tidak cocok dengan data yang terdaftar.`
+9. Kegagalan verification tidak melakukan logout.
+10. Attendance/geofence lama tetap diuji terpisah karena verification belum
+    menjadi syarat attendance.
+
 ### Health Check
 
 Endpoint health tersedia di:

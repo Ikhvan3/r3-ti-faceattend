@@ -727,6 +727,46 @@ menghasilkan HTTP `409`.
 Setelah reset, `GET /api/v1/face/status` kembali menampilkan
 `NOT_ENROLLED` dan user dapat enrollment ulang.
 
+`POST /api/v1/face/verify` menjalankan verifikasi wajah standalone untuk user
+dari access token. Endpoint ini tidak menerima `user_id`, `employee_number`,
+`threshold`, `similarity`, `verified`, atau enrolled embedding dari client.
+
+Request:
+
+```json
+{
+  "embedding": [0.1, 0.2, 0.3],
+  "embedding_model": "facenet",
+  "embedding_version": "shubham0204-facenet-2020-fp32"
+}
+```
+
+Response sukses:
+
+```json
+{
+  "status": "ok",
+  "data": {
+    "verified": true
+  }
+}
+```
+
+Jika wajah kandidat tidak cocok, response tetap HTTP `200` dengan
+`"verified": false` karena proses verifikasi berhasil dijalankan. User yang
+belum enrollment menghasilkan HTTP `409`. Request malformed, unknown field,
+model/version salah, dimensi salah, nilai `NaN`/`Inf`, atau zero vector ditolak
+sebagai HTTP `400`.
+
+Backend mengambil enrolled embedding dari `face_profiles` berdasarkan user JWT,
+memastikan akun masih `ACTIVE`, memastikan profile berstatus `ENROLLED`, lalu
+membandingkan candidate embedding dengan stored embedding menggunakan cosine
+similarity. Threshold verifikasi berada di backend melalui
+`FACE_VERIFICATION_THRESHOLD`; Flutter tidak mengetahui dan tidak mengirim
+threshold. Karena belum ada hasil kalibrasi lokal yang cukup di repository,
+nilai environment ini wajib diisi untuk development dan harus dikalibrasi dari
+pengujian user yang sudah enrollment sebelum dianggap final.
+
 Catatan tahap ini:
 
 - Backend menerima model embedding produksi berikut:
@@ -736,9 +776,9 @@ Catatan tahap ini:
   - file Flutter: `assets/models/facenet.tflite`
 - Model lain, versi lain, atau dimensi selain `128` ditolak.
 - Embedding tidak boleh dicetak ke log, tidak dikembalikan pada response
-  status/enroll/reset, dan tidak dimasukkan ke pesan error.
-- Endpoint ini belum dipakai untuk verifikasi attendance, liveness, kamera, atau
-  anti-spoofing.
+  status/enroll/reset/verify, dan tidak dimasukkan ke pesan error.
+- Endpoint verification belum dipakai untuk attendance enforcement.
+- Liveness dan anti-spoofing belum tersedia.
 
 ## Logout
 
