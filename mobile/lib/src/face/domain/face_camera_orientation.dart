@@ -11,7 +11,9 @@ class FaceCameraOrientation {
 
   bool get isMirrored => lens == FaceCameraLens.front;
 
-  double normalizeYaw(double yaw) {
-    return isMirrored ? -yaw : yaw;
-  }
+  // ML Kit headEulerAngleY is already expressed relative to the image being
+  // processed: positive means the face turns to the camera/image right and
+  // negative means it turns to the camera/image left. CameraPreview mirroring
+  // is only a presentation concern and must not invert the detector value.
+  double normalizeYaw(double yaw) => yaw;
 }
