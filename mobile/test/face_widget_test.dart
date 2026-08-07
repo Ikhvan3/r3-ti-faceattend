@@ -16,6 +16,7 @@ void main() {
 
     expect(find.text('Belum terdaftar'), findsOneWidget);
     expect(find.text('Daftarkan Wajah'), findsOneWidget);
+    expect(find.text('Uji Verifikasi Wajah'), findsNothing);
   });
 
   testWidgets('Home face card shows enrolled state', (tester) async {
@@ -23,6 +24,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Terdaftar'), findsOneWidget);
+    expect(find.text('Uji Verifikasi Wajah'), findsOneWidget);
     expect(find.text('Atur Ulang Wajah'), findsOneWidget);
   });
 

@@ -9,6 +9,8 @@ enum FaceFailureKind {
   corruptInput,
   invalidEmbedding,
   duplicateEnrollment,
+  notEnrolled,
+  verificationRejected,
   accountForbidden,
   sessionExpired,
   apiUnavailable,

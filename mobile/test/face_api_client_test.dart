@@ -67,6 +67,84 @@ void main() {
     expect(requester.lastBody?.containsKey('email'), isFalse);
   });
 
+  test('verify sends model metadata and parses verified result', () async {
+    final requester = FakeRequester(
+      response: response(<String, Object?>{'verified': true}),
+    );
+    final api = HttpFaceApiClient(client: requester);
+
+    final result = await api.verify(
+      embedding: List<double>.filled(FaceModelConfig.embeddingDimension, 0.1),
+      embeddingModel: FaceModelConfig.identifier,
+      embeddingVersion: FaceModelConfig.version,
+    );
+
+    expect(result.verified, isTrue);
+    expect(requester.lastMethod, 'POST');
+    expect(requester.lastPath, '/face/verify');
+    expect(
+      requester.lastBody?.keys,
+      containsAll(['embedding', 'embedding_model', 'embedding_version']),
+    );
+    expect(requester.lastBody?.containsKey('user_id'), isFalse);
+    expect(requester.lastBody?.containsKey('threshold'), isFalse);
+    expect(requester.lastBody?.containsKey('verified'), isFalse);
+  });
+
+  test('verify maps not enrolled conflict and malformed response', () async {
+    final notEnrolled = HttpFaceApiClient(
+      client: FakeRequester(
+        response: AuthenticatedApiResponse(
+          statusCode: HttpStatus.conflict,
+          payload: <String, Object?>{
+            'status': 'error',
+            'message': 'wajah belum terdaftar',
+          },
+        ),
+      ),
+    );
+    await expectLater(
+      notEnrolled.verify(
+        embedding: const [0.1],
+        embeddingModel: FaceModelConfig.identifier,
+        embeddingVersion: FaceModelConfig.version,
+      ),
+      throwsA(
+        isA<FaceFailure>().having(
+          (e) => e.kind,
+          'kind',
+          FaceFailureKind.notEnrolled,
+        ),
+      ),
+    );
+
+    final malformed = HttpFaceApiClient(
+      client: FakeRequester(
+        response: const AuthenticatedApiResponse(
+          statusCode: HttpStatus.ok,
+          payload: <String, Object?>{
+            'status': 'ok',
+            'data': <String, Object?>{},
+          },
+        ),
+      ),
+    );
+    await expectLater(
+      malformed.verify(
+        embedding: const [0.1],
+        embeddingModel: FaceModelConfig.identifier,
+        embeddingVersion: FaceModelConfig.version,
+      ),
+      throwsA(
+        isA<FaceFailure>().having(
+          (e) => e.kind,
+          'kind',
+          FaceFailureKind.malformedResponse,
+        ),
+      ),
+    );
+  });
+
   test('maps duplicate, offline and malformed response', () async {
     final duplicate = HttpFaceApiClient(
       client: FakeRequester(
