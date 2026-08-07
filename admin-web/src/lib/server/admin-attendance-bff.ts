@@ -84,9 +84,9 @@ export async function getAdminAttendanceDetail(
 }
 
 async function attendanceRead<T>(path: string): Promise<T> {
-  let accessToken = await readAccessToken();
+  let accessToken: string | undefined = await readAccessToken();
   if (!accessToken) {
-    accessToken = await refreshAccessToken();
+    accessToken = (await refreshAccessToken()) ?? undefined;
   }
   if (!accessToken) {
     throw new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
