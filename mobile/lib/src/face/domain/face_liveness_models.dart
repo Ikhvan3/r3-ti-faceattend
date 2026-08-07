@@ -91,7 +91,11 @@ class LivenessConfig {
     this.centerYawThreshold = 8,
     this.maxRollDegrees = 22,
     this.minFaceBoxRatio = 0.24,
-    this.edgeMarginRatio = 0.04,
+    // A head turn naturally shifts ML Kit's bounding box toward/outside the
+    // image edge. Allow a small overflow so valid TURN_LEFT / TURN_RIGHT
+    // frames keep reaching the liveness state machine instead of being
+    // treated as a lost face before actionStableDuration can complete.
+    this.edgeMarginRatio = -0.12,
     this.actionTimeout = const Duration(seconds: 8),
     this.challengeTimeout = const Duration(seconds: 35),
     this.faceLostTimeout = const Duration(milliseconds: 1800),
