@@ -91,6 +91,10 @@ class LivenessConfig {
     this.centerYawThreshold = 10,
     this.maxRollDegrees = 25,
     this.minFaceBoxRatio = 0.20,
+    // The current controller uses this as a containment tolerance, not as the
+    // visual center target. A generous negative margin prevents natural head
+    // turns and ML Kit coordinate jitter from being misclassified as face loss.
+    this.edgeMarginRatio = -0.25,
     this.centerOffsetRatio = 0.24,
     this.actionTimeout = const Duration(seconds: 10),
     this.challengeTimeout = const Duration(seconds: 40),
@@ -110,6 +114,7 @@ class LivenessConfig {
   final double centerYawThreshold;
   final double maxRollDegrees;
   final double minFaceBoxRatio;
+  final double edgeMarginRatio;
   final double centerOffsetRatio;
   final Duration actionTimeout;
   final Duration challengeTimeout;
