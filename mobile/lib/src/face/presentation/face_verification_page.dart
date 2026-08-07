@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'face_camera_capture_page.dart';
+import 'face_camera_preview.dart';
 import 'face_verification_controller.dart';
 
 class FaceVerificationPage extends StatelessWidget {
@@ -37,21 +38,10 @@ class _VerificationContent extends StatelessWidget {
     final isSuccess =
         controller.status == FaceVerificationControllerStatus.success;
 
-    final mediaOrientation = MediaQuery.of(context).orientation;
-    final isPortrait = mediaOrientation == Orientation.portrait;
-
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        AspectRatio(
-          aspectRatio: isPortrait
-              ? 1 / cameraController.value.aspectRatio
-              : cameraController.value.aspectRatio,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: CameraPreview(cameraController),
-          ),
-        ),
+        FaceCameraPreview(controller: cameraController),
         const SizedBox(height: 16),
         LinearProgressIndicator(value: progress == 0 ? null : progress),
         const SizedBox(height: 12),

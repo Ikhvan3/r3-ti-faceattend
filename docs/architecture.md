@@ -237,6 +237,62 @@ dikalibrasi dari pengujian enrollment/verifikasi user lokal. Verification masih
 standalone, belum menjadi syarat check-in/check-out, dan belum memiliki liveness
 atau anti-spoofing.
 
+Fondasi active face liveness prototype:
+
+```text
+Flutter mobile Uji Keaktifan Wajah
+-> CameraImage stream untuk challenge aktif
+-> ML Kit face detection dengan classification dan tracking
+-> blink/head-pose challenge
+-> capture sample sementara setelah liveness pass
+-> reuse pipeline Face Verification
+-> POST /api/v1/face/verify
+```
+
+Liveness masih standalone dan belum diwajibkan oleh attendance. Attendance dan
+geofence tetap memakai alur lama tanpa perubahan.
+
+Challenge aktif dibuat acak per sesi dengan kombinasi 2-3 langkah dari aksi
+`BLINK`, `TURN_LEFT`, `TURN_RIGHT`, dan `RETURN_CENTER`. Challenge hanya
+dimulai saat tepat satu wajah terdeteksi, kualitas wajah valid, ukuran wajah
+cukup, dan wajah berada relatif di tengah frame. Selama challenge, state machine
+menolak frame tanpa wajah, lebih dari satu wajah, tracking id yang berubah bila
+tersedia, wajah terlalu kecil, wajah keluar area tengah terlalu lama, timeout
+per aksi, dan timeout total challenge.
+
+Blink detection memakai `leftEyeOpenProbability` dan
+`rightEyeOpenProbability` dari ML Kit face classification. Satu frame mata
+tertutup tidak cukup; blink harus melewati urutan `OPEN -> CLOSED -> OPEN`.
+Threshold open/closed berada di `LivenessConfig` dan perlu dikalibrasi pada HP
+fisik.
+
+Head pose memakai `headEulerAngleY` untuk turn dan return center. Mapping kiri
+dan kanan melewati helper orientation/mirroring terpusat karena kamera depan
+dapat memantulkan preview. Nilai threshold turn, center, roll, ukuran wajah,
+margin tepi, timeout aksi, dan timeout total berada di `LivenessConfig` agar
+bisa dikalibrasi. Sign yaw tetap harus diverifikasi pada HP fisik sebelum
+dianggap stabil lintas perangkat.
+
+Setelah liveness pass, aplikasi tidak langsung menyatakan identitas valid.
+Mobile mengambil candidate sample sementara, memakai ulang
+`FaceSampleCollector` dan `FaceEmbeddingService`, melakukan normalisasi dan
+aggregation seperti face verification standalone, lalu memanggil
+`POST /api/v1/face/verify`. Jika liveness pass dan backend mengembalikan
+`verified: true`, UI menampilkan `Verifikasi wajah berhasil.`. Jika
+`verified: false`, UI menampilkan
+`Wajah tidak sesuai dengan data yang terdaftar.`.
+
+Raw image tidak disimpan sebagai data aplikasi. `CameraImage`, crop wajah,
+screenshot, JPEG/PNG/base64, dan candidate embedding hanya berada di memory
+atau file sementara milik camera plugin selama flow berjalan; file capture
+sementara dihapus setelah sample diproses. Embedding, image, token, threshold,
+dan score internal tidak boleh dicetak ke log.
+
+Keterbatasan: active liveness ini adalah prototype. Challenge blink/head-turn
+meningkatkan ketahanan terhadap foto statis, tetapi belum production-grade dan
+belum cukup untuk menahan replay video, injection kamera, deepfake, atau spoof
+perangkat tingkat lanjut.
+
 ## Prinsip Teknis
 
 - Server time menjadi sumber waktu absensi yang otoritatif.

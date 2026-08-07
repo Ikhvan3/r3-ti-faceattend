@@ -5,6 +5,9 @@ class FaceDetectionResult {
     required this.boundingBox,
     required this.imageWidth,
     required this.imageHeight,
+    this.trackingId,
+    this.leftEyeOpenProbability,
+    this.rightEyeOpenProbability,
     this.headEulerAngleY,
     this.headEulerAngleZ,
   });
@@ -12,6 +15,9 @@ class FaceDetectionResult {
   final Rect boundingBox;
   final int imageWidth;
   final int imageHeight;
+  final int? trackingId;
+  final double? leftEyeOpenProbability;
+  final double? rightEyeOpenProbability;
   final double? headEulerAngleY;
   final double? headEulerAngleZ;
 }

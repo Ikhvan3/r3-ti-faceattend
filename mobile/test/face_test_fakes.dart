@@ -1,3 +1,5 @@
+import 'package:camera/camera.dart';
+import 'package:flutter/services.dart';
 import 'package:r3_ti_faceattend/src/face/data/face_api_client.dart';
 import 'package:r3_ti_faceattend/src/face/data/face_detector_service.dart';
 import 'package:r3_ti_faceattend/src/face/data/face_embedding_service.dart';
@@ -107,6 +109,19 @@ class FakeFaceDetector implements FaceDetectorService {
 
   @override
   Future<List<FaceDetectionResult>> detect(String imagePath) async {
+    final failure = error;
+    if (failure != null) {
+      throw failure;
+    }
+    return faces;
+  }
+
+  @override
+  Future<List<FaceDetectionResult>> detectCameraImage({
+    required CameraImage image,
+    required CameraDescription camera,
+    required DeviceOrientation deviceOrientation,
+  }) async {
     final failure = error;
     if (failure != null) {
       throw failure;
