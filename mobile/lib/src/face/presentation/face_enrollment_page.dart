@@ -29,6 +29,7 @@ class FaceEnrollmentPage extends StatelessWidget {
     );
   }
 }
+
 class _EnrollmentContent extends StatelessWidget {
   const _EnrollmentContent({
     required this.cameraController,
@@ -43,11 +44,16 @@ class _EnrollmentContent extends StatelessWidget {
     final controller = context.watch<FaceEnrollmentController>();
     final progress = controller.sampleCount / controller.sampleTarget;
 
+    final mediaOrientation = MediaQuery.of(context).orientation;
+    final isPortrait = mediaOrientation == Orientation.portrait;
+
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         AspectRatio(
-          aspectRatio: cameraController.value.aspectRatio,
+          aspectRatio: isPortrait
+              ? 1 / cameraController.value.aspectRatio
+              : cameraController.value.aspectRatio,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: CameraPreview(cameraController),
