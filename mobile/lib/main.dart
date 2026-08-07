@@ -10,6 +10,7 @@ import 'src/auth/presentation/auth_controller.dart';
 import 'src/auth/presentation/auth_gate.dart';
 import 'src/attendance/data/attendance_api_client.dart';
 import 'src/attendance/data/attendance_repository.dart';
+import 'src/attendance/data/location_service.dart';
 import 'src/core/network/authenticated_api_client.dart';
 import 'src/config/api_config.dart';
 
@@ -50,17 +51,20 @@ class R3TiFaceAttendApp extends StatelessWidget {
   const R3TiFaceAttendApp({
     required this.authRepository,
     required this.attendanceRepository,
+    this.locationService = const GeolocatorLocationService(),
     super.key,
   });
 
   final AuthRepository authRepository;
   final AttendanceRepository attendanceRepository;
+  final LocationService locationService;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
         Provider<AttendanceRepository>.value(value: attendanceRepository),
+        Provider<LocationService>.value(value: locationService),
         ChangeNotifierProvider<AuthController>(
           create: (_) => AuthController(authRepository)..initialize(),
         ),

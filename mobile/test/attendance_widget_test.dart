@@ -43,6 +43,7 @@ void main() {
   testWidgets('loading state', (tester) async {
     final controller = AttendanceController(
       fakeAttendanceRepository(FakeAttendanceApi()),
+      FakeLocationService(),
     );
     await tester.pumpWidget(_controllerApp(controller));
 
@@ -51,7 +52,10 @@ void main() {
 
   testWidgets('error state', (tester) async {
     final api = FakeAttendanceApi()..todayError = timeoutFailure;
-    final controller = AttendanceController(fakeAttendanceRepository(api));
+    final controller = AttendanceController(
+      fakeAttendanceRepository(api),
+      FakeLocationService(),
+    );
     await controller.initialize();
 
     await tester.pumpWidget(_controllerApp(controller));
@@ -62,7 +66,10 @@ void main() {
 
   testWidgets('dialog konfirmasi check-in', (tester) async {
     final api = FakeAttendanceApi();
-    final controller = AttendanceController(fakeAttendanceRepository(api));
+    final controller = AttendanceController(
+      fakeAttendanceRepository(api),
+      FakeLocationService(),
+    );
     await controller.initialize();
     await tester.pumpWidget(_controllerApp(controller));
 
@@ -71,7 +78,9 @@ void main() {
 
     expect(find.text('Konfirmasi Check-in'), findsOneWidget);
     expect(
-      find.text('Anda akan melakukan check-in menggunakan waktu server.'),
+      find.text(
+        'Anda akan melakukan check-in menggunakan lokasi perangkat dan waktu server.',
+      ),
       findsOneWidget,
     );
   });
@@ -107,6 +116,7 @@ void main() {
 Future<Widget> _attendanceCardApp(AttendanceToday today) async {
   final controller = AttendanceController(
     fakeAttendanceRepository(FakeAttendanceApi()..todayResult = today),
+    FakeLocationService(),
   );
   await controller.initialize();
   return _controllerApp(controller);

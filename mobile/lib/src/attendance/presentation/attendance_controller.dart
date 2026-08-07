@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../data/attendance_repository.dart';
+import '../data/location_service.dart';
 import '../domain/attendance_failure.dart';
 import '../domain/attendance_models.dart';
 
@@ -15,9 +18,10 @@ enum AttendanceControllerStatus {
 enum AttendanceAction { checkIn, checkOut, refresh }
 
 class AttendanceController extends ChangeNotifier {
-  AttendanceController(this._repository);
+  AttendanceController(this._repository, this._locationService);
 
   final AttendanceRepository _repository;
+  final LocationService _locationService;
 
   AttendanceControllerStatus _status = AttendanceControllerStatus.initial;
   AttendanceToday? _today;
@@ -96,7 +100,8 @@ class AttendanceController extends ChangeNotifier {
 
   Future<void> _runAction(
     AttendanceAction action,
-    Future<AttendanceToday> Function() operation,
+    Future<AttendanceToday> Function(AttendanceLocationPayload location)
+    operation,
   ) async {
     if (_status == AttendanceControllerStatus.actionLoading || _isRefreshing) {
       return;
@@ -109,7 +114,8 @@ class AttendanceController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _today = await operation();
+      final location = await _currentLocationPayload();
+      _today = await operation(location);
       _today = await _repository.loadToday();
       _status = AttendanceControllerStatus.loaded;
     } on AttendanceFailure catch (error) {
@@ -137,6 +143,13 @@ class AttendanceController extends ChangeNotifier {
       case AttendanceFailureKind.sessionExpired:
       case AttendanceFailureKind.apiUnavailable:
       case AttendanceFailureKind.requestTimeout:
+      case AttendanceFailureKind.locationServiceDisabled:
+      case AttendanceFailureKind.locationPermissionDenied:
+      case AttendanceFailureKind.locationPermissionDeniedForever:
+      case AttendanceFailureKind.locationTimeout:
+      case AttendanceFailureKind.poorAccuracy:
+      case AttendanceFailureKind.locationAssignmentMissing:
+      case AttendanceFailureKind.outsideGeofence:
       case AttendanceFailureKind.scheduleUnavailable:
       case AttendanceFailureKind.accountForbidden:
       case AttendanceFailureKind.malformedResponse:
@@ -149,5 +162,54 @@ class AttendanceController extends ChangeNotifier {
     _status = AttendanceControllerStatus.failure;
     _errorMessage = error.message;
     _sessionExpired = error.kind == AttendanceFailureKind.sessionExpired;
+  }
+
+  Future<AttendanceLocationPayload> _currentLocationPayload() async {
+    if (!await _locationService.isLocationServiceEnabled()) {
+      throw const AttendanceFailure(
+        AttendanceFailureKind.locationServiceDisabled,
+        'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+      );
+    }
+
+    var permission = await _locationService.checkPermission();
+    if (permission == AttendanceLocationPermission.denied) {
+      permission = await _locationService.requestPermission();
+    }
+
+    switch (permission) {
+      case AttendanceLocationPermission.whileInUse:
+      case AttendanceLocationPermission.always:
+        break;
+      case AttendanceLocationPermission.denied:
+        throw const AttendanceFailure(
+          AttendanceFailureKind.locationPermissionDenied,
+          'Izin lokasi diperlukan untuk melakukan absensi.',
+        );
+      case AttendanceLocationPermission.deniedForever:
+        throw const AttendanceFailure(
+          AttendanceFailureKind.locationPermissionDeniedForever,
+          'Izin lokasi ditolak permanen. Buka pengaturan aplikasi untuk mengaktifkannya.',
+        );
+    }
+
+    try {
+      final position = await _locationService.getCurrentPosition();
+      return AttendanceLocationPayload(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracyMeters: position.accuracyMeters,
+      );
+    } on TimeoutException {
+      throw const AttendanceFailure(
+        AttendanceFailureKind.locationTimeout,
+        'GPS belum mendapatkan lokasi terbaru. Coba lagi di area terbuka.',
+      );
+    } on AttendanceLocationServiceDisabledException {
+      throw const AttendanceFailure(
+        AttendanceFailureKind.locationServiceDisabled,
+        'Layanan lokasi belum aktif. Aktifkan GPS lalu coba lagi.',
+      );
+    }
   }
 }

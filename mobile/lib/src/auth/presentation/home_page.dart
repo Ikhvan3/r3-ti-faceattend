@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../attendance/data/attendance_repository.dart';
+import '../../attendance/data/location_service.dart';
 import '../../attendance/presentation/attendance_card.dart';
 import '../../attendance/presentation/attendance_controller.dart';
 import '../domain/user_profile.dart';
@@ -40,9 +41,10 @@ class HomePage extends StatelessWidget {
         ],
       ),
       body: ChangeNotifierProvider<AttendanceController>(
-        create: (context) =>
-            AttendanceController(context.read<AttendanceRepository>())
-              ..initialize(),
+        create: (context) => AttendanceController(
+          context.read<AttendanceRepository>(),
+          context.read<LocationService>(),
+        )..initialize(),
         child: _AttendanceHomeBody(user: user),
       ),
     );
@@ -60,8 +62,6 @@ class _AttendanceHomeBody extends StatefulWidget {
 
 class _AttendanceHomeBodyState extends State<_AttendanceHomeBody>
     with WidgetsBindingObserver {
-  bool _logoutScheduled = false;
-
   @override
   void initState() {
     super.initState();
@@ -83,17 +83,6 @@ class _AttendanceHomeBodyState extends State<_AttendanceHomeBody>
 
   @override
   Widget build(BuildContext context) {
-    final attendance = context.watch<AttendanceController>();
-    if (attendance.sessionExpired && !_logoutScheduled) {
-      _logoutScheduled = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        context.read<AuthController>().logout();
-      });
-    }
-
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [

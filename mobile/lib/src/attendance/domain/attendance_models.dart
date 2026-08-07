@@ -72,6 +72,168 @@ class WorkSchedule {
   final bool isActive;
 }
 
+class AttendanceLocationPayload {
+  const AttendanceLocationPayload({
+    required this.latitude,
+    required this.longitude,
+    required this.accuracyMeters,
+  });
+
+  final double latitude;
+  final double longitude;
+  final double accuracyMeters;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'latitude': latitude,
+      'longitude': longitude,
+      'accuracy_meters': accuracyMeters,
+    };
+  }
+}
+
+class AttendanceLocationEvidence {
+  const AttendanceLocationEvidence({
+    required this.officeLocationId,
+    required this.officeLocationName,
+    required this.accuracyMeters,
+    required this.distanceMeters,
+    required this.insideGeofence,
+  });
+
+  factory AttendanceLocationEvidence.fromJson(Object? value) {
+    if (value == null) {
+      throw const FormatException('Evidence lokasi tidak valid.');
+    }
+    final json = _object(value, 'Evidence lokasi tidak valid.');
+    return AttendanceLocationEvidence(
+      officeLocationId: _string(
+        json['office_location_id'],
+        'ID lokasi kantor tidak valid.',
+      ),
+      officeLocationName: _string(
+        json['office_location_name'],
+        'Nama lokasi kantor tidak valid.',
+      ),
+      accuracyMeters: _number(
+        json['accuracy_meters'],
+        'Akurasi lokasi tidak valid.',
+      ),
+      distanceMeters: _number(
+        json['distance_meters'],
+        'Jarak lokasi tidak valid.',
+      ),
+      insideGeofence: _bool(
+        json['inside_geofence'],
+        'Status geofence tidak valid.',
+      ),
+    );
+  }
+
+  final String officeLocationId;
+  final String officeLocationName;
+  final double accuracyMeters;
+  final double distanceMeters;
+  final bool insideGeofence;
+}
+
+class OfficeLocation {
+  const OfficeLocation({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.latitude,
+    required this.longitude,
+    required this.radiusMeters,
+    required this.isActive,
+  });
+
+  factory OfficeLocation.fromJson(Object? value) {
+    final json = _object(value, 'Lokasi kantor tidak valid.');
+    final address = json['address'];
+    if (address != null && address is! String) {
+      throw const FormatException('Alamat lokasi kantor tidak valid.');
+    }
+    final radiusMeters = json['radius_meters'];
+    final isActive = json['is_active'];
+    if (radiusMeters is! int || radiusMeters <= 0) {
+      throw const FormatException('Radius lokasi kantor tidak valid.');
+    }
+    if (isActive is! bool) {
+      throw const FormatException('Status lokasi kantor tidak valid.');
+    }
+
+    return OfficeLocation(
+      id: _string(json['id'], 'ID lokasi kantor tidak valid.'),
+      name: _string(json['name'], 'Nama lokasi kantor tidak valid.'),
+      address: address as String?,
+      latitude: _number(
+        json['latitude'],
+        'Latitude lokasi kantor tidak valid.',
+      ),
+      longitude: _number(
+        json['longitude'],
+        'Longitude lokasi kantor tidak valid.',
+      ),
+      radiusMeters: radiusMeters,
+      isActive: isActive,
+    );
+  }
+
+  final String id;
+  final String name;
+  final String? address;
+  final double latitude;
+  final double longitude;
+  final int radiusMeters;
+  final bool isActive;
+}
+
+class LocationAssignmentRequirement {
+  const LocationAssignmentRequirement({
+    required this.id,
+    required this.officeLocation,
+    required this.effectiveFrom,
+    required this.effectiveTo,
+    required this.status,
+  });
+
+  factory LocationAssignmentRequirement.fromJson(Object? value) {
+    final json = _object(value, 'Penugasan lokasi tidak valid.');
+    return LocationAssignmentRequirement(
+      id: _string(json['id'], 'ID penugasan lokasi tidak valid.'),
+      officeLocation: OfficeLocation.fromJson(json['office_location']),
+      effectiveFrom: _dateOnlyText(json['effective_from']),
+      effectiveTo: _nullableDateOnlyText(json['effective_to']),
+      status: _string(json['status'], 'Status penugasan lokasi tidak valid.'),
+    );
+  }
+
+  final String id;
+  final OfficeLocation officeLocation;
+  final String effectiveFrom;
+  final String? effectiveTo;
+  final String status;
+}
+
+class LocationRequirement {
+  const LocationRequirement({
+    required this.assignment,
+    required this.officeLocation,
+  });
+
+  factory LocationRequirement.fromJson(Object? value) {
+    final json = _object(value, 'Kebutuhan lokasi tidak valid.');
+    return LocationRequirement(
+      assignment: LocationAssignmentRequirement.fromJson(json['assignment']),
+      officeLocation: OfficeLocation.fromJson(json['office_location']),
+    );
+  }
+
+  final LocationAssignmentRequirement assignment;
+  final OfficeLocation officeLocation;
+}
+
 class AttendanceToday {
   const AttendanceToday({
     required this.attendanceDate,
@@ -81,6 +243,8 @@ class AttendanceToday {
     required this.state,
     required this.canCheckIn,
     required this.canCheckOut,
+    required this.checkInLocation,
+    required this.checkOutLocation,
   });
 
   factory AttendanceToday.fromJson(Object? value) {
@@ -99,6 +263,8 @@ class AttendanceToday {
       state: AttendanceState.fromJson(json['state']),
       canCheckIn: canCheckIn,
       canCheckOut: canCheckOut,
+      checkInLocation: _nullableEvidence(json['check_in_location']),
+      checkOutLocation: _nullableEvidence(json['check_out_location']),
     );
   }
 
@@ -109,6 +275,8 @@ class AttendanceToday {
   final AttendanceState state;
   final bool canCheckIn;
   final bool canCheckOut;
+  final AttendanceLocationEvidence? checkInLocation;
+  final AttendanceLocationEvidence? checkOutLocation;
 }
 
 class AttendanceRecord {
@@ -119,6 +287,8 @@ class AttendanceRecord {
     required this.checkInAt,
     required this.checkOutAt,
     required this.state,
+    required this.checkInLocation,
+    required this.checkOutLocation,
   });
 
   factory AttendanceRecord.fromJson(Object? value) {
@@ -131,6 +301,8 @@ class AttendanceRecord {
       checkInAt: _dateTime(json['check_in_at']),
       checkOutAt: _nullableDateTime(json['check_out_at']),
       state: AttendanceState.fromJson(json['state']),
+      checkInLocation: _nullableEvidence(json['check_in_location']),
+      checkOutLocation: _nullableEvidence(json['check_out_location']),
     );
   }
 
@@ -140,6 +312,8 @@ class AttendanceRecord {
   final DateTime checkInAt;
   final DateTime? checkOutAt;
   final AttendanceState state;
+  final AttendanceLocationEvidence? checkInLocation;
+  final AttendanceLocationEvidence? checkOutLocation;
 }
 
 class AttendanceHistoryResponse {
@@ -220,13 +394,50 @@ String _string(Object? value, String message) {
   throw FormatException(message);
 }
 
+double _number(Object? value, String message) {
+  if (value is num && value.isFinite) {
+    return value.toDouble();
+  }
+  throw FormatException(message);
+}
+
+bool _bool(Object? value, String message) {
+  if (value is bool) {
+    return value;
+  }
+  throw FormatException(message);
+}
+
+AttendanceLocationEvidence? _nullableEvidence(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  return AttendanceLocationEvidence.fromJson(value);
+}
+
 DateTime _attendanceDate(Object? value) {
+  final text = _dateOnlyText(value);
+  return DateTime(
+    int.parse(text.substring(0, 4)),
+    int.parse(text.substring(5, 7)),
+    int.parse(text.substring(8, 10)),
+  );
+}
+
+String _dateOnlyText(Object? value) {
   final text = _string(value, 'Tanggal absensi tidak valid.');
   final date = DateTime.tryParse(text);
   if (date == null || text.length != 10) {
     throw const FormatException('Tanggal absensi tidak valid.');
   }
-  return DateTime(date.year, date.month, date.day);
+  return text;
+}
+
+String? _nullableDateOnlyText(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  return _dateOnlyText(value);
 }
 
 DateTime _dateTime(Object? value) {

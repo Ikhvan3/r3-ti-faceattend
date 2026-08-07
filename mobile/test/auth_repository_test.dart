@@ -19,11 +19,12 @@ void main() {
     expect(storage.accessToken, 'access-token');
     expect(storage.refreshToken, 'refresh-token');
     expect(storage.saveCalls, 1);
+    expect(api.loginCalls, 1);
+    expect(api.meCalls, 1);
   });
 
   test('login ADMIN ditolak dan token tidak disimpan', () async {
-    final api = FakeAuthApi()
-      ..loginResult = userTokens(user: userProfile(role: 'ADMIN'));
+    final api = FakeAuthApi()..meResult = userProfile(role: 'ADMIN');
     final storage = FakeTokenStorage();
     final repository = AuthRepository(api: api, tokenStorage: storage);
 
@@ -35,8 +36,7 @@ void main() {
   });
 
   test('akun INACTIVE ditolak', () async {
-    final api = FakeAuthApi()
-      ..loginResult = userTokens(user: userProfile(status: 'INACTIVE'));
+    final api = FakeAuthApi()..meResult = userProfile(status: 'INACTIVE');
     final repository = AuthRepository(
       api: api,
       tokenStorage: FakeTokenStorage(),
@@ -49,8 +49,7 @@ void main() {
   });
 
   test('akun SUSPENDED ditolak', () async {
-    final api = FakeAuthApi()
-      ..loginResult = userTokens(user: userProfile(status: 'SUSPENDED'));
+    final api = FakeAuthApi()..meResult = userProfile(status: 'SUSPENDED');
     final repository = AuthRepository(
       api: api,
       tokenStorage: FakeTokenStorage(),
@@ -72,6 +71,22 @@ void main() {
       throwsA(isA<AuthFailure>()),
     );
     expect(storage.saveCalls, 0);
+  });
+
+  test('token tidak disimpan jika profil me gagal setelah login', () async {
+    final api = FakeAuthApi()..meError = expiredFailure;
+    final storage = FakeTokenStorage();
+    final repository = AuthRepository(api: api, tokenStorage: storage);
+
+    await expectLater(
+      repository.login(email: 'u@example.test', password: 'password'),
+      throwsA(isA<AuthFailure>()),
+    );
+
+    expect(api.loginCalls, 1);
+    expect(api.meCalls, 1);
+    expect(storage.saveCalls, 0);
+    expect(storage.accessToken, isNull);
   });
 
   test('restore access token berhasil', () async {
