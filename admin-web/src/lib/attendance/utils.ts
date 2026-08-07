@@ -1,5 +1,6 @@
 import type {
   AdminAttendanceDetail,
+  AdminAttendanceListItem,
   AdminAttendanceListQuery,
   AdminAttendanceListResponse,
   AdminAttendanceState,
@@ -91,6 +92,8 @@ export function isAttendanceDetail(
     isAttendanceListItem(value) &&
     typeof value.id === "string" &&
     typeof value.check_in_at === "string" &&
+    "check_in_location" in value &&
+    "check_out_location" in value &&
     (value.check_in_location === null ||
       isLocationEvidence(value.check_in_location)) &&
     (value.check_out_location === null ||
@@ -130,7 +133,9 @@ export function formatBusinessTime(value: string | null): string {
   }).format(date);
 }
 
-function isAttendanceListItem(value: unknown): boolean {
+function isAttendanceListItem(
+  value: unknown,
+): value is AdminAttendanceListItem {
   if (!isRecord(value) || !isRecord(value.employee) || !isRecord(value.schedule)) {
     return false;
   }
@@ -141,11 +146,14 @@ function isAttendanceListItem(value: unknown): boolean {
     typeof value.employee.employee_number === "string" &&
     typeof value.employee.name === "string" &&
     typeof value.employee.email === "string" &&
+    (value.employee.position === null ||
+      typeof value.employee.position === "string") &&
     typeof value.schedule.id === "string" &&
     typeof value.schedule.name === "string" &&
     typeof value.schedule.start_time === "string" &&
     typeof value.schedule.end_time === "string" &&
     typeof value.schedule.grace_minutes === "number" &&
+    typeof value.schedule.is_active === "boolean" &&
     (value.check_in_at === null || typeof value.check_in_at === "string") &&
     (value.check_out_at === null || typeof value.check_out_at === "string") &&
     isAttendanceState(value.attendance_state) &&
@@ -168,7 +176,10 @@ function isLocationEvidence(value: unknown): boolean {
 }
 
 function isAttendanceState(value: unknown): value is AdminAttendanceState {
-  return typeof value === "string" && ATTENDANCE_STATES.includes(value as AdminAttendanceState);
+  return (
+    typeof value === "string" &&
+    ATTENDANCE_STATES.includes(value as AdminAttendanceState)
+  );
 }
 
 function first(value: string | string[] | undefined): string {
