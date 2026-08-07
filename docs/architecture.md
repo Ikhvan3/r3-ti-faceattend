@@ -209,9 +209,33 @@ Camera preview
 
 Response status/enrollment hanya menampilkan status, metadata model, dan waktu
 enrollment. Embedding tidak dikembalikan ke client, tidak dicetak ke log, dan
-tidak dipakai untuk attendance enforcement pada tahap ini. Face verification,
-liveness, kamera mobile, anti-spoofing, dan enforcement attendance tetap berada
-di tahap berikutnya.
+tidak dipakai untuk attendance enforcement pada tahap ini.
+
+Fondasi face verification standalone:
+
+```text
+Flutter mobile verification development flow
+-> reuse ML Kit + TFLite embedding pipeline enrollment
+-> POST /api/v1/face/verify
+-> Golang mengambil face_profiles berdasarkan user JWT
+-> cosine similarity
+-> verified boolean
+```
+
+Candidate embedding menggunakan pipeline yang sama dengan enrollment:
+orientation correction, detection, quality gate, crop margin, resize,
+RGB normalization, inference, output validation, L2 normalization per sample,
+average 5 sample, dan L2 normalization final. Backend menormalisasi ulang
+candidate dan stored embedding sebelum cosine similarity agar kontrak normalized
+embedding tetap aman.
+
+Metric verifikasi adalah cosine similarity dengan range valid `[-1,1]`.
+Threshold berada di backend melalui `FACE_VERIFICATION_THRESHOLD` dan divalidasi
+saat startup. Repository ini belum memiliki bukti kalibrasi threshold yang cukup,
+sehingga tidak ada default produksi; nilai development wajib diisi dan harus
+dikalibrasi dari pengujian enrollment/verifikasi user lokal. Verification masih
+standalone, belum menjadi syarat check-in/check-out, dan belum memiliki liveness
+atau anti-spoofing.
 
 ## Prinsip Teknis
 

@@ -17,6 +17,7 @@ import 'src/face/data/face_api_client.dart';
 import 'src/face/data/face_repository.dart';
 import 'src/face/domain/face_failure.dart';
 import 'src/face/domain/face_status.dart';
+import 'src/face/domain/face_verification_result.dart';
 
 void main() {
   final apiConfig = ApiConfig.fromEnvironment();
@@ -124,6 +125,18 @@ class _UnavailableFaceApi implements FaceApi {
     throw const FaceFailure(
       FaceFailureKind.apiUnavailable,
       'Reset wajah belum tersedia.',
+    );
+  }
+
+  @override
+  Future<FaceVerificationResult> verify({
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  }) {
+    throw const FaceFailure(
+      FaceFailureKind.apiUnavailable,
+      'Verifikasi wajah belum tersedia.',
     );
   }
 }

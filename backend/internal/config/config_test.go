@@ -117,3 +117,44 @@ func TestLoadRejectsInvalidGeofenceMaxAccuracyThroughValidate(t *testing.T) {
 		t.Fatal("Validate() error = nil, want error")
 	}
 }
+
+func TestFaceVerificationConfigValidateAcceptsCosineThreshold(t *testing.T) {
+	cfg := FaceVerificationConfig{Threshold: 0.8}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestFaceVerificationConfigValidateRejectsMissingOrOutOfRangeThreshold(t *testing.T) {
+	tests := []float64{math.NaN(), math.Inf(1), -1.1, 1.1}
+
+	for _, value := range tests {
+		t.Run("invalid", func(t *testing.T) {
+			cfg := FaceVerificationConfig{Threshold: value}
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("Validate() error = nil, want error for %v", value)
+			}
+		})
+	}
+}
+
+func TestLoadRequiresFaceVerificationThresholdThroughValidate(t *testing.T) {
+	t.Setenv("FACE_VERIFICATION_THRESHOLD", "")
+
+	cfg := Load()
+
+	if err := cfg.FaceVerification.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want error")
+	}
+}
+
+func TestLoadReadsFaceVerificationThreshold(t *testing.T) {
+	t.Setenv("FACE_VERIFICATION_THRESHOLD", "0.82")
+
+	cfg := Load()
+
+	if cfg.FaceVerification.Threshold != 0.82 {
+		t.Fatalf("Threshold = %v, want 0.82", cfg.FaceVerification.Threshold)
+	}
+}

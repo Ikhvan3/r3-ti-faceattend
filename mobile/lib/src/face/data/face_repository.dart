@@ -1,4 +1,5 @@
 import '../domain/face_status.dart';
+import '../domain/face_verification_result.dart';
 import 'face_api_client.dart';
 
 class FaceRepository {
@@ -24,5 +25,17 @@ class FaceRepository {
 
   Future<void> resetEnrollment() {
     return _api.resetEnrollment();
+  }
+
+  Future<FaceVerificationResult> verify({
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  }) {
+    return _api.verify(
+      embedding: embedding,
+      embeddingModel: embeddingModel,
+      embeddingVersion: embeddingVersion,
+    );
   }
 }

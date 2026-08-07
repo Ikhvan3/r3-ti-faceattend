@@ -3,10 +3,16 @@ import 'dart:io';
 import '../../core/network/authenticated_api_client.dart';
 import '../domain/face_failure.dart';
 import '../domain/face_status.dart';
+import '../domain/face_verification_result.dart';
 
 abstract class FaceApi {
   Future<FaceStatus> getStatus();
   Future<FaceStatus> enroll({
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  });
+  Future<FaceVerificationResult> verify({
     required List<double> embedding,
     required String embeddingModel,
     required String embeddingVersion,
@@ -49,6 +55,31 @@ class HttpFaceApiClient implements FaceApi {
     await _send(method: 'DELETE', path: '/face/enrollment');
   }
 
+  @override
+  Future<FaceVerificationResult> verify({
+    required List<double> embedding,
+    required String embeddingModel,
+    required String embeddingVersion,
+  }) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/face/verify',
+      body: <String, Object?>{
+        'embedding': embedding,
+        'embedding_model': embeddingModel,
+        'embedding_version': embeddingVersion,
+      },
+    );
+    try {
+      return FaceVerificationResult.fromJson(response.payload['data']);
+    } on FormatException {
+      throw const FaceFailure(
+        FaceFailureKind.malformedResponse,
+        'Respons verifikasi wajah tidak sesuai.',
+      );
+    }
+  }
+
   Future<AuthenticatedApiResponse> _send({
     required String method,
     required String path,
@@ -61,7 +92,7 @@ class HttpFaceApiClient implements FaceApi {
         body: body,
       );
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw _mapStatus(response.statusCode, response.payload);
+        throw _mapStatus(response.statusCode, path);
       }
       if (response.payload['status'] != 'ok') {
         throw const FaceFailure(
@@ -86,7 +117,7 @@ class HttpFaceApiClient implements FaceApi {
     }
   }
 
-  FaceFailure _mapStatus(int statusCode, Map<String, Object?> payload) {
+  FaceFailure _mapStatus(int statusCode, String path) {
     if (statusCode == HttpStatus.unauthorized) {
       return const FaceFailure(
         FaceFailureKind.sessionExpired,
@@ -100,6 +131,12 @@ class HttpFaceApiClient implements FaceApi {
       );
     }
     if (statusCode == HttpStatus.conflict) {
+      if (path == '/face/verify') {
+        return const FaceFailure(
+          FaceFailureKind.notEnrolled,
+          'Wajah belum terdaftar.',
+        );
+      }
       return const FaceFailure(
         FaceFailureKind.duplicateEnrollment,
         'Wajah sudah terdaftar. Atur ulang sebelum mendaftar ulang.',

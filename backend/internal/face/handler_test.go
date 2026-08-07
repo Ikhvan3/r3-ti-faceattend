@@ -32,6 +32,13 @@ func TestHandlerAuth(t *testing.T) {
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("admin status = %d", response.Code)
 	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/face/verify", strings.NewReader(validVerifyJSON()))
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("verify missing token status = %d", response.Code)
+	}
 }
 
 func TestHandlerStatusDoesNotExposeEmbedding(t *testing.T) {
@@ -105,6 +112,91 @@ func TestHandlerEnrollSuccessAndDuplicate(t *testing.T) {
 	}
 }
 
+func TestHandlerVerifyValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want int
+	}{
+		{name: "malformed", body: `{"embedding":`, want: http.StatusBadRequest},
+		{name: "unknown field", body: `{"embedding":[0.1,0.2,0.3],"embedding_model":"test-face-model","embedding_version":"v1","threshold":0.9}`, want: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := protectedHandler(newFakeHTTPService(), userClaims(testUserID))
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/face/verify", strings.NewReader(tt.body))
+			request.Header.Set("Authorization", "Bearer valid-token")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tt.want {
+				t.Fatalf("status = %d want %d body=%s", response.Code, tt.want, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandlerVerifyResponses(t *testing.T) {
+	service := newFakeHTTPService()
+	handler := protectedHandler(service, userClaims(testUserID))
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/face/verify", strings.NewReader(validVerifyJSON()))
+	request.Header.Set("Authorization", "Bearer valid-token")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
+	}
+	if len(service.lastVerificationInput.Embedding) != 3 {
+		t.Fatalf("embedding length passed to service = %d", len(service.lastVerificationInput.Embedding))
+	}
+	body := response.Body.String()
+	if !strings.Contains(body, `"verified":true`) {
+		t.Fatalf("verify response = %s, want verified true", body)
+	}
+	if strings.Contains(body, `"embedding":`) || strings.Contains(body, `"threshold"`) || strings.Contains(body, "0.1") {
+		t.Fatalf("verify response exposes private data: %s", body)
+	}
+
+	service.verifyResult = VerificationResponse{Verified: false}
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/face/verify", strings.NewReader(validVerifyJSON()))
+	request.Header.Set("Authorization", "Bearer valid-token")
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("mismatch status = %d body=%s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"verified":false`) {
+		t.Fatalf("verify response = %s, want verified false", response.Body.String())
+	}
+}
+
+func TestHandlerVerifyErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "not enrolled conflict", err: ErrNotEnrolled, want: http.StatusConflict},
+		{name: "invalid input", err: ErrInvalidInput, want: http.StatusBadRequest},
+		{name: "wrong model", err: ErrUnsupportedModel, want: http.StatusBadRequest},
+		{name: "wrong dimension", err: ErrInvalidDimension, want: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := newFakeHTTPService()
+			service.verifyErr = tt.err
+			handler := protectedHandler(service, userClaims(testUserID))
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/face/verify", strings.NewReader(validVerifyJSON()))
+			request.Header.Set("Authorization", "Bearer valid-token")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tt.want {
+				t.Fatalf("status = %d want %d body=%s", response.Code, tt.want, response.Body.String())
+			}
+		})
+	}
+}
+
 func TestHandlerReset(t *testing.T) {
 	service := newFakeHTTPService()
 	handler := protectedHandler(service, userClaims(testUserID))
@@ -132,6 +224,7 @@ func protectedHandler(service *fakeHTTPService, claims auth.Claims) http.Handler
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/face/status", handler.Status)
 	mux.HandleFunc("/api/v1/face/enroll", handler.Enroll)
+	mux.HandleFunc("/api/v1/face/verify", handler.Verify)
 	mux.HandleFunc("/api/v1/face/enrollment", handler.Enrollment)
 	return auth.Authenticate(fakeVerifier{claims: claims}, auth.RequireRole(user.RoleUser, mux))
 }
@@ -148,15 +241,21 @@ func (v fakeVerifier) VerifyAccessToken(token string) (auth.Claims, error) {
 }
 
 type fakeHTTPService struct {
-	status    StatusResponse
-	statusErr error
-	enrollErr error
-	resetErr  error
-	lastInput EnrollmentInput
+	status                StatusResponse
+	statusErr             error
+	enrollErr             error
+	verifyResult          VerificationResponse
+	verifyErr             error
+	resetErr              error
+	lastInput             EnrollmentInput
+	lastVerificationInput VerificationInput
 }
 
 func newFakeHTTPService() *fakeHTTPService {
-	return &fakeHTTPService{status: StatusResponse{Enrolled: false, FaceStatus: FaceStatusNotEnrolled}}
+	return &fakeHTTPService{
+		status:       StatusResponse{Enrolled: false, FaceStatus: FaceStatusNotEnrolled},
+		verifyResult: VerificationResponse{Verified: true},
+	}
 }
 
 func (s *fakeHTTPService) Status(_ context.Context, _ auth.Claims) (StatusResponse, error) {
@@ -175,6 +274,14 @@ func (s *fakeHTTPService) Enroll(_ context.Context, _ auth.Claims, input Enrollm
 	return StatusResponse{Enrolled: true, FaceStatus: FaceStatusEnrolled, EmbeddingModel: input.EmbeddingModel, EmbeddingVersion: input.EmbeddingVersion, EnrolledAt: &now}, nil
 }
 
+func (s *fakeHTTPService) Verify(_ context.Context, _ auth.Claims, input VerificationInput) (VerificationResponse, error) {
+	s.lastVerificationInput = input
+	if s.verifyErr != nil {
+		return VerificationResponse{}, s.verifyErr
+	}
+	return s.verifyResult, nil
+}
+
 func (s *fakeHTTPService) Reset(_ context.Context, _ auth.Claims) error {
 	if s.resetErr != nil {
 		return s.resetErr
@@ -183,6 +290,19 @@ func (s *fakeHTTPService) Reset(_ context.Context, _ auth.Claims) error {
 }
 
 func validEnrollJSON() string {
+	body := map[string]any{
+		"embedding":         []float64{0.1, 0.2, 0.3},
+		"embedding_model":   "test-face-model",
+		"embedding_version": "v1",
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
+
+func validVerifyJSON() string {
 	body := map[string]any{
 		"embedding":         []float64{0.1, 0.2, 0.3},
 		"embedding_model":   "test-face-model",

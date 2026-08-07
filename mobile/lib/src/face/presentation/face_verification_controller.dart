@@ -9,23 +9,19 @@ import '../data/face_repository.dart';
 import '../data/face_sample_collector.dart';
 import '../domain/face_failure.dart';
 import '../domain/face_model_config.dart';
-import '../domain/face_status.dart';
 
-enum FaceControllerStatus {
+enum FaceVerificationControllerStatus {
   initial,
-  loadingStatus,
-  loaded,
   sampling,
   submitting,
-  resetting,
-  failure,
   success,
+  failure,
 }
 
-typedef FaceImageCapture = Future<String> Function();
+typedef FaceVerificationImageCapture = Future<String> Function();
 
-class FaceEnrollmentController extends ChangeNotifier {
-  FaceEnrollmentController({
+class FaceVerificationController extends ChangeNotifier {
+  FaceVerificationController({
     required FaceRepository repository,
     required FaceDetectorService detector,
     required FaceEmbeddingService embeddingService,
@@ -42,79 +38,46 @@ class FaceEnrollmentController extends ChangeNotifier {
   final FaceEmbeddingService _embeddingService;
   final FaceSampleCollector _sampleCollector;
 
-  FaceControllerStatus _status = FaceControllerStatus.initial;
-  FaceStatus? _faceStatus;
-  String? _errorMessage;
-  String? _qualityMessage;
+  FaceVerificationControllerStatus _status =
+      FaceVerificationControllerStatus.initial;
+  String? _message;
   int _sampleCount = 0;
   bool _sessionExpired = false;
+  bool _verified = false;
   bool _disposed = false;
 
-  FaceControllerStatus get status => _status;
-  FaceStatus? get faceStatus => _faceStatus;
-  String? get errorMessage => _errorMessage;
-  String? get qualityMessage => _qualityMessage;
+  FaceVerificationControllerStatus get status => _status;
+  String? get message => _message;
   int get sampleCount => _sampleCount;
   int get sampleTarget => FaceModelConfig.sampleTarget;
   bool get sessionExpired => _sessionExpired;
+  bool get verified => _verified;
   bool get isBusy =>
-      _status == FaceControllerStatus.loadingStatus ||
-      _status == FaceControllerStatus.sampling ||
-      _status == FaceControllerStatus.submitting ||
-      _status == FaceControllerStatus.resetting;
+      _status == FaceVerificationControllerStatus.sampling ||
+      _status == FaceVerificationControllerStatus.submitting;
 
-  Future<void> loadStatus() async {
-    if (_status == FaceControllerStatus.loadingStatus) {
-      return;
-    }
-    _setState(status: FaceControllerStatus.loadingStatus);
-    try {
-      _faceStatus = await _repository.loadStatus();
-      _setState(status: FaceControllerStatus.loaded);
-    } on FaceFailure catch (error) {
-      _applyFailure(error);
-    }
-  }
-
-  Future<void> resetEnrollment() async {
-    if (isBusy) {
-      return;
-    }
-    _setState(status: FaceControllerStatus.resetting);
-    try {
-      await _repository.resetEnrollment();
-      _faceStatus = const FaceStatus(
-        enrolled: false,
-        status: FaceEnrollmentStatus.notEnrolled,
-      );
-      _setState(status: FaceControllerStatus.loaded);
-    } on FaceFailure catch (error) {
-      _applyFailure(error);
-    }
-  }
-
-  Future<void> enrollFromCamera(FaceImageCapture capture) async {
+  Future<void> verifyFromCamera(FaceVerificationImageCapture capture) async {
     if (isBusy) {
       return;
     }
     final samples = <List<double>>[];
     _sampleCount = 0;
+    _verified = false;
     _setState(
-      status: FaceControllerStatus.sampling,
-      qualityMessage: 'Arahkan wajah ke kamera.',
+      status: FaceVerificationControllerStatus.sampling,
+      message: 'Arahkan wajah ke kamera.',
     );
 
     while (samples.length < FaceModelConfig.sampleTarget && !_disposed) {
       String? imagePath;
       try {
         imagePath = await capture();
-        final sample = await collectSample(imagePath);
+        final sample = await _sampleCollector.collectSample(imagePath);
         samples.add(sample);
         _sampleCount = samples.length;
         _setState(
-          status: FaceControllerStatus.sampling,
-          qualityMessage:
-              'Sample $_sampleCount/${FaceModelConfig.sampleTarget}',
+          status: FaceVerificationControllerStatus.sampling,
+          message: 'Sample $_sampleCount/${FaceModelConfig.sampleTarget}',
         );
         if (samples.length < FaceModelConfig.sampleTarget) {
           await Future<void>.delayed(FaceModelConfig.sampleInterval);
@@ -125,8 +88,8 @@ class FaceEnrollmentController extends ChangeNotifier {
           return;
         }
         _setState(
-          status: FaceControllerStatus.sampling,
-          qualityMessage: error.message,
+          status: FaceVerificationControllerStatus.sampling,
+          message: error.message,
         );
         await Future<void>.delayed(FaceModelConfig.sampleInterval);
       } finally {
@@ -141,16 +104,22 @@ class FaceEnrollmentController extends ChangeNotifier {
     }
 
     final aggregated = _sampleCollector.aggregateSamples(samples);
-    _setState(status: FaceControllerStatus.submitting);
+    _setState(
+      status: FaceVerificationControllerStatus.submitting,
+      message: 'Mengirim verifikasi wajah.',
+    );
     try {
-      _faceStatus = await _repository.enroll(
+      final result = await _repository.verify(
         embedding: aggregated,
         embeddingModel: FaceModelConfig.identifier,
         embeddingVersion: FaceModelConfig.version,
       );
+      _verified = result.verified;
       _setState(
-        status: FaceControllerStatus.success,
-        qualityMessage: 'Enrollment wajah berhasil.',
+        status: FaceVerificationControllerStatus.success,
+        message: result.verified
+            ? 'Wajah berhasil diverifikasi.'
+            : 'Wajah tidak cocok dengan data yang terdaftar.',
       );
     } on FaceFailure catch (error) {
       _applyFailure(error);
@@ -182,27 +151,20 @@ class FaceEnrollmentController extends ChangeNotifier {
     }
   }
 
-  Future<List<double>> collectSample(String imagePath) async {
-    return _sampleCollector.collectSample(imagePath);
-  }
-
   void _applyFailure(FaceFailure error) {
     _sessionExpired = error.kind == FaceFailureKind.sessionExpired;
     _setState(
-      status: FaceControllerStatus.failure,
-      errorMessage: error.message,
-      qualityMessage: error.message,
+      status: FaceVerificationControllerStatus.failure,
+      message: error.message,
     );
   }
 
   void _setState({
-    required FaceControllerStatus status,
-    String? errorMessage,
-    String? qualityMessage,
+    required FaceVerificationControllerStatus status,
+    String? message,
   }) {
     _status = status;
-    _errorMessage = errorMessage;
-    _qualityMessage = qualityMessage;
+    _message = message;
     if (!_disposed) {
       notifyListeners();
     }

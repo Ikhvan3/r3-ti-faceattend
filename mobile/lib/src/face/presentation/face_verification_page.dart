@@ -3,45 +3,38 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'face_camera_capture_page.dart';
-import 'face_enrollment_controller.dart';
+import 'face_verification_controller.dart';
 
-class FaceEnrollmentPage extends StatelessWidget {
-  const FaceEnrollmentPage({super.key});
+class FaceVerificationPage extends StatelessWidget {
+  const FaceVerificationPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<FaceEnrollmentController>();
-    if (controller.status == FaceControllerStatus.success) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          Navigator.of(context).pop();
-        }
-      });
-    }
-
     return FaceCameraCapturePage(
-      title: 'Daftarkan Wajah',
-      permissionMessage: 'Izin kamera diperlukan untuk enrollment wajah.',
-      builder: (context, cameraController, capture) => _EnrollmentContent(
+      title: 'Uji Verifikasi Wajah',
+      permissionMessage: 'Izin kamera diperlukan untuk verifikasi wajah.',
+      builder: (context, cameraController, capture) => _VerificationContent(
         cameraController: cameraController,
         onCapture: capture,
       ),
     );
   }
 }
-class _EnrollmentContent extends StatelessWidget {
-  const _EnrollmentContent({
+
+class _VerificationContent extends StatelessWidget {
+  const _VerificationContent({
     required this.cameraController,
     required this.onCapture,
   });
 
   final CameraController cameraController;
-  final FaceImageCapture onCapture;
+  final CameraImageCapture onCapture;
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<FaceEnrollmentController>();
+    final controller = context.watch<FaceVerificationController>();
     final progress = controller.sampleCount / controller.sampleTarget;
+    final isSuccess = controller.status == FaceVerificationControllerStatus.success;
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -57,34 +50,33 @@ class _EnrollmentContent extends StatelessWidget {
         LinearProgressIndicator(value: progress == 0 ? null : progress),
         const SizedBox(height: 12),
         Text(
-          controller.qualityMessage ??
-              'Posisikan wajah di tengah frame lalu mulai enrollment.',
+          controller.message ?? 'Posisikan wajah di tengah frame.',
           textAlign: TextAlign.center,
+          style: isSuccess
+              ? TextStyle(
+                  color: controller.verified
+                      ? Colors.green.shade700
+                      : Colors.red.shade700,
+                  fontWeight: FontWeight.w700,
+                )
+              : null,
         ),
-        if (controller.errorMessage != null) ...[
-          const SizedBox(height: 8),
-          Text(
-            controller.errorMessage!,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.red.shade700),
-          ),
-        ],
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: controller.isBusy
               ? null
-              : () => controller.enrollFromCamera(onCapture),
+              : () => controller.verifyFromCamera(onCapture),
           icon: controller.isBusy
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.camera_front),
+              : const Icon(Icons.verified_user_outlined),
           label: Text(
             controller.isBusy
                 ? 'Sample ${controller.sampleCount}/${controller.sampleTarget}'
-                : 'Mulai Enrollment',
+                : 'Mulai Verifikasi',
           ),
         ),
       ],

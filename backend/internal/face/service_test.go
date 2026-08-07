@@ -139,6 +139,150 @@ func TestServiceEnrollRequiresActiveUser(t *testing.T) {
 	}
 }
 
+func TestCosineSimilarity(t *testing.T) {
+	tests := []struct {
+		name       string
+		left       []float64
+		right      []float64
+		want       float64
+		wantErr    error
+		assertNear bool
+	}{
+		{name: "same vector", left: []float64{1, 0, 0}, right: []float64{1, 0, 0}, want: 1, assertNear: true},
+		{name: "very similar vector", left: []float64{1, 0, 0}, right: []float64{0.99, 0.01, 0}, want: 0.9999, assertNear: true},
+		{name: "different vector", left: []float64{1, 0, 0}, right: []float64{0, 1, 0}, want: 0, assertNear: true},
+		{name: "dimension mismatch", left: []float64{1, 0}, right: []float64{1, 0, 0}, wantErr: ErrInvalidDimension},
+		{name: "zero vector", left: []float64{0, 0, 0}, right: []float64{1, 0, 0}, wantErr: ErrInvalidInput},
+		{name: "nan", left: []float64{math.NaN(), 0, 0}, right: []float64{1, 0, 0}, wantErr: ErrInvalidInput},
+		{name: "infinity", left: []float64{math.Inf(1), 0, 0}, right: []float64{1, 0, 0}, wantErr: ErrInvalidInput},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := CosineSimilarity(tt.left, tt.right)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("CosineSimilarity() error = %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("CosineSimilarity() error = %v", err)
+			}
+			if got < -1 || got > 1 {
+				t.Fatalf("similarity range = %v, want [-1,1]", got)
+			}
+			if tt.assertNear && math.Abs(got-tt.want) > 0.001 {
+				t.Fatalf("similarity = %v, want near %v", got, tt.want)
+			}
+			reversed, err := CosineSimilarity(tt.right, tt.left)
+			if err != nil {
+				t.Fatalf("reversed CosineSimilarity() error = %v", err)
+			}
+			if math.Abs(got-reversed) > 1e-12 {
+				t.Fatalf("similarity is not symmetric: %v vs %v", got, reversed)
+			}
+		})
+	}
+}
+
+func TestServiceVerify(t *testing.T) {
+	t.Run("same embedding verifies according to threshold", func(t *testing.T) {
+		repo := enrolledFakeRepository([]float64{1, 0, 0})
+		service := newTestService(repo)
+
+		result, err := service.Verify(context.Background(), userClaims(testUserID), VerificationInput{
+			Embedding:        []float64{1, 0, 0},
+			EmbeddingModel:   "test-face-model",
+			EmbeddingVersion: "v1",
+		})
+		if err != nil {
+			t.Fatalf("Verify() error = %v", err)
+		}
+		if !result.Verified {
+			t.Fatal("Verified = false, want true")
+		}
+	})
+
+	t.Run("similar embedding verifies", func(t *testing.T) {
+		repo := enrolledFakeRepository([]float64{1, 0, 0})
+		service := newTestService(repo)
+
+		result, err := service.Verify(context.Background(), userClaims(testUserID), VerificationInput{
+			Embedding:        []float64{0.98, 0.05, 0},
+			EmbeddingModel:   "test-face-model",
+			EmbeddingVersion: "v1",
+		})
+		if err != nil {
+			t.Fatalf("Verify() error = %v", err)
+		}
+		if !result.Verified {
+			t.Fatal("Verified = false, want true")
+		}
+	})
+
+	t.Run("mismatch returns verified false", func(t *testing.T) {
+		repo := enrolledFakeRepository([]float64{1, 0, 0})
+		service := newTestService(repo)
+
+		result, err := service.Verify(context.Background(), userClaims(testUserID), VerificationInput{
+			Embedding:        []float64{0, 1, 0},
+			EmbeddingModel:   "test-face-model",
+			EmbeddingVersion: "v1",
+		})
+		if err != nil {
+			t.Fatalf("Verify() error = %v", err)
+		}
+		if result.Verified {
+			t.Fatal("Verified = true, want false")
+		}
+	})
+
+	tests := []struct {
+		name  string
+		repo  *fakeRepository
+		input VerificationInput
+		want  error
+	}{
+		{name: "not enrolled", repo: newFakeRepository(), input: validVerificationInput(), want: ErrNotEnrolled},
+		{name: "wrong model", repo: enrolledFakeRepository([]float64{1, 0, 0}), input: VerificationInput{Embedding: []float64{1, 0, 0}, EmbeddingModel: "other", EmbeddingVersion: "v1"}, want: ErrUnsupportedModel},
+		{name: "wrong version", repo: enrolledFakeRepository([]float64{1, 0, 0}), input: VerificationInput{Embedding: []float64{1, 0, 0}, EmbeddingModel: "test-face-model", EmbeddingVersion: "other"}, want: ErrUnsupportedModel},
+		{name: "wrong dimension", repo: enrolledFakeRepository([]float64{1, 0, 0}), input: VerificationInput{Embedding: []float64{1, 0}, EmbeddingModel: "test-face-model", EmbeddingVersion: "v1"}, want: ErrInvalidDimension},
+		{name: "nan", repo: enrolledFakeRepository([]float64{1, 0, 0}), input: VerificationInput{Embedding: []float64{math.NaN(), 0, 0}, EmbeddingModel: "test-face-model", EmbeddingVersion: "v1"}, want: ErrInvalidInput},
+		{name: "infinity", repo: enrolledFakeRepository([]float64{1, 0, 0}), input: VerificationInput{Embedding: []float64{math.Inf(1), 0, 0}, EmbeddingModel: "test-face-model", EmbeddingVersion: "v1"}, want: ErrInvalidInput},
+		{name: "zero vector", repo: enrolledFakeRepository([]float64{1, 0, 0}), input: VerificationInput{Embedding: []float64{0, 0, 0}, EmbeddingModel: "test-face-model", EmbeddingVersion: "v1"}, want: ErrInvalidInput},
+		{name: "stored invalid", repo: enrolledFakeRepository([]float64{0, 0, 0}), input: validVerificationInput(), want: ErrRepositoryFailure},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := newTestService(tt.repo)
+			_, err := service.Verify(context.Background(), userClaims(testUserID), tt.input)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("Verify() error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestServiceVerifyRequiresActiveUserAndOwnClaims(t *testing.T) {
+	repo := enrolledFakeRepository([]float64{1, 0, 0})
+	repo.users[testUserID] = user.User{ID: testUserID, Role: user.RoleUser, AccountStatus: user.AccountStatusInactive}
+	service := newTestService(repo)
+
+	_, err := service.Verify(context.Background(), userClaims(testUserID), validVerificationInput())
+	if !errors.Is(err, ErrInactiveAccount) {
+		t.Fatalf("inactive Verify() error = %v, want %v", err, ErrInactiveAccount)
+	}
+
+	repo = enrolledFakeRepository([]float64{1, 0, 0})
+	service = newTestService(repo)
+	_, err = service.Verify(context.Background(), adminClaims(), validVerificationInput())
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("admin Verify() error = %v, want %v", err, ErrForbidden)
+	}
+}
+
 func TestProductionModelRegistryEnrollmentRules(t *testing.T) {
 	t.Run("registered model accepted", func(t *testing.T) {
 		service := newProductionTestService(newFakeRepository())
@@ -179,22 +323,43 @@ func TestProductionModelRegistryEnrollmentRules(t *testing.T) {
 
 func newTestService(repo *fakeRepository) Service {
 	service := NewService(repo, repo, NewModelRegistry([]SupportedModel{{
-		Name:      "test-face-model",
-		Version:   "v1",
-		Dimension: 3,
-	}}))
+		Name:             "test-face-model",
+		Version:          "v1",
+		Dimension:        3,
+		SimilarityMetric: SimilarityMetricCosine,
+		NormalizeInput:   true,
+	}}), 0.95)
 	service.now = func() time.Time { return time.Date(2026, 8, 7, 1, 0, 0, 0, time.UTC) }
 	return service
 }
 
 func newProductionTestService(repo *fakeRepository) Service {
-	service := NewService(repo, repo, ProductionModelRegistry())
+	service := NewService(repo, repo, ProductionModelRegistry(), 0.95)
 	service.now = func() time.Time { return time.Date(2026, 8, 7, 1, 0, 0, 0, time.UTC) }
 	return service
 }
 
 func validInput() EnrollmentInput {
 	return EnrollmentInput{Embedding: []float64{0.1, 0.2, 0.3}, EmbeddingModel: "test-face-model", EmbeddingVersion: "v1"}
+}
+
+func validVerificationInput() VerificationInput {
+	return VerificationInput{Embedding: []float64{1, 0, 0}, EmbeddingModel: "test-face-model", EmbeddingVersion: "v1"}
+}
+
+func enrolledFakeRepository(embedding []float64) *fakeRepository {
+	repo := newFakeRepository()
+	enrolledAt := time.Date(2026, 8, 7, 1, 0, 0, 0, time.UTC)
+	repo.profiles[testUserID] = FaceProfile{
+		ID:               "profile-id",
+		UserID:           testUserID,
+		Embedding:        embedding,
+		EmbeddingModel:   "test-face-model",
+		EmbeddingVersion: "v1",
+		Status:           FaceStatusEnrolled,
+		EnrolledAt:       &enrolledAt,
+	}
+	return repo
 }
 
 func productionInput(dimension int) EnrollmentInput {

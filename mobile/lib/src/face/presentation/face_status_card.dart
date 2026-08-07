@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../domain/face_status.dart';
+import '../data/face_detector_service.dart';
+import '../data/face_embedding_service.dart';
+import '../data/face_repository.dart';
 import 'face_enrollment_controller.dart';
 import 'face_enrollment_page.dart';
+import 'face_verification_controller.dart';
+import 'face_verification_page.dart';
 
 class FaceStatusCard extends StatelessWidget {
   const FaceStatusCard({super.key});
@@ -84,7 +89,15 @@ class FaceStatusCard extends StatelessWidget {
                 icon: const Icon(Icons.face_retouching_natural),
                 label: const Text('Daftarkan Wajah'),
               )
-            else
+            else ...[
+              FilledButton.icon(
+                onPressed: controller.isBusy
+                    ? null
+                    : () => _openVerification(context),
+                icon: const Icon(Icons.verified_user_outlined),
+                label: const Text('Uji Verifikasi Wajah'),
+              ),
+              const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: controller.isBusy
                     ? null
@@ -92,6 +105,7 @@ class FaceStatusCard extends StatelessWidget {
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('Atur Ulang Wajah'),
               ),
+            ],
           ],
         ),
       ),
@@ -110,6 +124,21 @@ class FaceStatusCard extends StatelessWidget {
     if (context.mounted) {
       await context.read<FaceEnrollmentController>().loadStatus();
     }
+  }
+
+  Future<void> _openVerification(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChangeNotifierProvider<FaceVerificationController>(
+          create: (_) => FaceVerificationController(
+            repository: context.read<FaceRepository>(),
+            detector: MlKitFaceDetectorService(),
+            embeddingService: TfliteFaceEmbeddingService(),
+          ),
+          child: const FaceVerificationPage(),
+        ),
+      ),
+    );
   }
 
   Future<void> _confirmReset(BuildContext context) async {
