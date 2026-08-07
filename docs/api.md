@@ -582,14 +582,17 @@ Request:
 {
   "latitude": -6.98946,
   "longitude": 110.416735,
-  "accuracy_meters": 12.5
+  "accuracy_meters": 12.5,
+  "verification_grant": "opaque-token"
 }
 ```
 
 Check-in berhasil mengembalikan HTTP `201`. Backend mengambil assignment lokasi
 aktif berdasarkan tanggal bisnis, menghitung jarak geofence server-side, dan
 menyimpan evidence lokasi pada attendance record dalam transaksi yang sama.
-Check-in ganda pada tanggal kerja yang sama mengembalikan HTTP `409`.
+Grant wajib terikat ke user dari token, purpose `CHECK_IN`, belum expired, dan
+belum consumed. Check-in ganda pada tanggal kerja yang sama mengembalikan HTTP
+`409`.
 
 ### Check-out
 
@@ -598,8 +601,9 @@ Endpoint:
 - `POST /api/v1/attendance/check-out`
 
 Request sama dengan check-in. Check-out berhasil mengembalikan HTTP `200` dan
-menyimpan evidence lokasi check-out. Check-out sebelum check-in atau check-out
-ganda mengembalikan HTTP `409`.
+menyimpan evidence lokasi check-out. Grant wajib terikat ke purpose
+`CHECK_OUT`. Check-out sebelum check-in atau check-out ganda mengembalikan HTTP
+`409`.
 
 Error geofence:
 
@@ -777,8 +781,53 @@ Catatan tahap ini:
 - Model lain, versi lain, atau dimensi selain `128` ditolak.
 - Embedding tidak boleh dicetak ke log, tidak dikembalikan pada response
   status/enroll/reset/verify, dan tidak dimasukkan ke pesan error.
-- Endpoint verification belum dipakai untuk attendance enforcement.
-- Liveness dan anti-spoofing belum tersedia.
+- Endpoint `/face/verify` tetap standalone dan tidak menerbitkan grant
+  attendance.
+
+### Verify For Attendance
+
+Endpoint:
+
+- `POST /api/v1/face/verify-for-attendance`
+
+Endpoint ini hanya menerima access token role `USER` aktif. Request tidak
+menerima `user_id`, `employee_id`, `threshold`, `similarity`, `verified`, atau
+`expires_at` dari client.
+
+Request:
+
+```json
+{
+  "purpose": "CHECK_IN",
+  "embedding": [0.1, 0.2, 0.3],
+  "embedding_model": "facenet",
+  "embedding_version": "shubham0204-facenet-2020-fp32"
+}
+```
+
+`purpose` hanya boleh `CHECK_IN` atau `CHECK_OUT`. Backend memakai pipeline
+verifikasi wajah yang sama dengan `/face/verify`: profile harus enrolled,
+model dan version harus cocok dengan registry, dimensi embedding harus sesuai,
+nilai harus finite dan bukan zero vector, dan threshold tetap dari backend.
+
+Jika wajah cocok, backend membuat verification grant server-side yang singkat,
+sekali pakai, dan terikat ke user serta purpose. Raw grant dikirim satu kali ke
+Flutter, sedangkan database hanya menyimpan hash token.
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "data": {
+    "verification_grant": "opaque-token",
+    "expires_at": "2026-08-07T01:02:00Z"
+  }
+}
+```
+
+Response tidak memuat embedding, similarity score, threshold, atau stored face
+template. Jika wajah tidak cocok, grant tidak dibuat.
 
 ## Logout
 
