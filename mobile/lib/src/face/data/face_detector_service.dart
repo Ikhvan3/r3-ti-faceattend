@@ -64,6 +64,9 @@ class MlKitFaceDetectorService implements FaceDetectorService {
 
     final faces = await _detector.processImage(inputImage);
 
+    // ML Kit returns portrait-space coordinates when the Android input image
+    // carries a 90/270 degree rotation. Keep the logical dimensions in the
+    // same coordinate space as the returned face bounding boxes.
     final isRotated =
         rotation == InputImageRotation.rotation90deg ||
         rotation == InputImageRotation.rotation270deg;
@@ -79,23 +82,48 @@ class MlKitFaceDetectorService implements FaceDetectorService {
     required CameraImage image,
     required InputImageRotation rotation,
   }) {
+    if (image.planes.isEmpty) {
+      return null;
+    }
+
     final Uint8List bytes;
     final InputImageFormat format;
+    final int bytesPerRow;
 
     if (Platform.isAndroid) {
-      bytes = _yuv420ToNv21(image);
-      format = InputImageFormat.nv21;
+      final rawFormat = InputImageFormatValue.fromRawValue(image.format.raw);
+
+      // camera_android/camerax can provide NV21 as one plane. Prefer the raw
+      // buffer directly; this is also the format recommended by the ML Kit
+      // Flutter plugin for Android camera streams.
+      if (rawFormat == InputImageFormat.nv21 && image.planes.length == 1) {
+        final plane = image.planes.first;
+        bytes = plane.bytes;
+        format = InputImageFormat.nv21;
+        bytesPerRow = plane.bytesPerRow;
+      } else if (image.planes.length >= 3) {
+        // Fallback for devices/backends that still expose YUV420 in three
+        // planes. Convert it once to the NV21 buffer ML Kit expects.
+        bytes = _yuv420ToNv21(image);
+        format = InputImageFormat.nv21;
+        bytesPerRow = image.width;
+      } else {
+        return null;
+      }
     } else {
       final resolvedFormat = InputImageFormatValue.fromRawValue(
         image.format.raw,
       );
-      if (resolvedFormat == null) return null;
+      if (resolvedFormat == null) {
+        return null;
+      }
       final writeBuffer = WriteBuffer();
       for (final plane in image.planes) {
         writeBuffer.putUint8List(plane.bytes);
       }
       bytes = writeBuffer.done().buffer.asUint8List();
       format = resolvedFormat;
+      bytesPerRow = image.planes.first.bytesPerRow;
     }
 
     return InputImage.fromBytes(
@@ -104,7 +132,7 @@ class MlKitFaceDetectorService implements FaceDetectorService {
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
         format: format,
-        bytesPerRow: image.width,
+        bytesPerRow: bytesPerRow,
       ),
     );
   }
@@ -133,7 +161,6 @@ class MlKitFaceDetectorService implements FaceDetectorService {
     final uvSize = width * height ~/ 2;
     final nv21 = Uint8List(ySize + uvSize);
 
-    // Copy Y plane, stripping row padding if bytesPerRow > width.
     var offset = 0;
     for (var row = 0; row < height; row++) {
       final rowStart = row * yPlane.bytesPerRow;
@@ -141,18 +168,17 @@ class MlKitFaceDetectorService implements FaceDetectorService {
       offset += width;
     }
 
-    // Interleave V and U planes into NV21 (VU order), respecting pixel/row stride.
-    final uvRowStride = uPlane.bytesPerRow;
-    final uvPixelStride = uPlane.bytesPerPixel ?? 2;
+    final uPixelStride = uPlane.bytesPerPixel ?? 1;
+    final vPixelStride = vPlane.bytesPerPixel ?? 1;
     final chromaHeight = height ~/ 2;
     final chromaWidth = width ~/ 2;
 
     for (var row = 0; row < chromaHeight; row++) {
-      var uRowStart = row * uvRowStride;
-      var vRowStart = row * vPlane.bytesPerRow;
+      final uRowStart = row * uPlane.bytesPerRow;
+      final vRowStart = row * vPlane.bytesPerRow;
       for (var col = 0; col < chromaWidth; col++) {
-        final uIndex = uRowStart + col * uvPixelStride;
-        final vIndex = vRowStart + col * uvPixelStride;
+        final uIndex = uRowStart + col * uPixelStride;
+        final vIndex = vRowStart + col * vPixelStride;
         nv21[offset++] = vPlane.bytes[vIndex];
         nv21[offset++] = uPlane.bytes[uIndex];
       }
