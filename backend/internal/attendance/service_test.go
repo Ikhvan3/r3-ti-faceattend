@@ -54,7 +54,7 @@ func TestServiceCheckInSuccessAndDuplicate(t *testing.T) {
 	repo := newFakeAttendanceRepository()
 	service := newTestService(repo, time.Date(2026, 8, 5, 2, 0, 0, 0, time.UTC))
 
-	status, err := service.CheckIn(context.Background(), userClaims())
+	status, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest())
 	if err != nil {
 		t.Fatalf("CheckIn() error = %v", err)
 	}
@@ -62,7 +62,7 @@ func TestServiceCheckInSuccessAndDuplicate(t *testing.T) {
 		t.Fatalf("status after check-in = %+v", status)
 	}
 
-	_, err = service.CheckIn(context.Background(), userClaims())
+	_, err = service.CheckIn(context.Background(), userClaims(), validLocationRequest())
 	if !errors.Is(err, ErrAlreadyCheckedIn) {
 		t.Fatalf("second CheckIn() error = %v, want %v", err, ErrAlreadyCheckedIn)
 	}
@@ -78,7 +78,7 @@ func TestServiceConcurrentCheckInDoesNotCreateTwoRecords(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := service.CheckIn(context.Background(), userClaims())
+			_, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest())
 			errs <- err
 		}()
 	}
@@ -109,11 +109,11 @@ func TestServiceCheckOutRules(t *testing.T) {
 	t.Run("berhasil", func(t *testing.T) {
 		repo := newFakeAttendanceRepository()
 		service := newTestService(repo, now)
-		if _, err := service.CheckIn(context.Background(), userClaims()); err != nil {
+		if _, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest()); err != nil {
 			t.Fatalf("CheckIn() error = %v", err)
 		}
 
-		status, err := service.CheckOut(context.Background(), userClaims())
+		status, err := service.CheckOut(context.Background(), userClaims(), validLocationRequest())
 		if err != nil {
 			t.Fatalf("CheckOut() error = %v", err)
 		}
@@ -126,7 +126,7 @@ func TestServiceCheckOutRules(t *testing.T) {
 		repo := newFakeAttendanceRepository()
 		service := newTestService(repo, now)
 
-		_, err := service.CheckOut(context.Background(), userClaims())
+		_, err := service.CheckOut(context.Background(), userClaims(), validLocationRequest())
 		if !errors.Is(err, ErrNotCheckedIn) {
 			t.Fatalf("CheckOut() error = %v, want %v", err, ErrNotCheckedIn)
 		}
@@ -135,16 +135,143 @@ func TestServiceCheckOutRules(t *testing.T) {
 	t.Run("ganda ditolak", func(t *testing.T) {
 		repo := newFakeAttendanceRepository()
 		service := newTestService(repo, now)
-		if _, err := service.CheckIn(context.Background(), userClaims()); err != nil {
+		if _, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest()); err != nil {
 			t.Fatalf("CheckIn() error = %v", err)
 		}
-		if _, err := service.CheckOut(context.Background(), userClaims()); err != nil {
+		if _, err := service.CheckOut(context.Background(), userClaims(), validLocationRequest()); err != nil {
 			t.Fatalf("CheckOut() error = %v", err)
 		}
 
-		_, err := service.CheckOut(context.Background(), userClaims())
+		_, err := service.CheckOut(context.Background(), userClaims(), validLocationRequest())
 		if !errors.Is(err, ErrAlreadyCheckedOut) {
 			t.Fatalf("second CheckOut() error = %v, want %v", err, ErrAlreadyCheckedOut)
+		}
+	})
+}
+
+func TestServiceGeofenceEvidenceRules(t *testing.T) {
+	now := time.Date(2026, 8, 5, 2, 0, 0, 0, time.UTC)
+
+	t.Run("check-in menyimpan evidence lokasi", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		service := newTestService(repo, now)
+
+		status, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest())
+		if err != nil {
+			t.Fatalf("CheckIn() error = %v", err)
+		}
+		if status.CheckInLocation == nil {
+			t.Fatal("CheckInLocation = nil, want evidence")
+		}
+		if status.CheckInLocation.OfficeLocationID != repo.location.OfficeLocationID || !status.CheckInLocation.InsideGeofence {
+			t.Fatalf("CheckInLocation = %+v", status.CheckInLocation)
+		}
+		if repo.record == nil || repo.record.CheckInLocation == nil {
+			t.Fatal("repository record missing check-in evidence")
+		}
+	})
+
+	t.Run("check-out menyimpan evidence lokasi", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		service := newTestService(repo, now)
+		if _, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest()); err != nil {
+			t.Fatalf("CheckIn() error = %v", err)
+		}
+
+		status, err := service.CheckOut(context.Background(), userClaims(), validLocationRequest())
+		if err != nil {
+			t.Fatalf("CheckOut() error = %v", err)
+		}
+		if status.CheckOutLocation == nil {
+			t.Fatal("CheckOutLocation = nil, want evidence")
+		}
+	})
+
+	t.Run("akurasi lebih dari batas ditolak", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		service := newTestService(repo, now)
+
+		request := validLocationRequest()
+		request.AccuracyMeters = 51
+		_, err := service.CheckIn(context.Background(), userClaims(), request)
+		if !errors.Is(err, ErrPoorAccuracy) {
+			t.Fatalf("CheckIn() error = %v, want %v", err, ErrPoorAccuracy)
+		}
+	})
+
+	t.Run("di luar radius ditolak", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		service := newTestService(repo, now)
+
+		request := AttendanceLocationRequest{Latitude: -6.98, Longitude: 110.50, AccuracyMeters: 12.5}
+		_, err := service.CheckIn(context.Background(), userClaims(), request)
+		if !errors.Is(err, ErrOutsideGeofence) {
+			t.Fatalf("CheckIn() error = %v, want %v", err, ErrOutsideGeofence)
+		}
+	})
+
+	t.Run("assignment lokasi tidak ada", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		repo.locationErr = ErrLocationNotFound
+		service := newTestService(repo, now)
+
+		_, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest())
+		if !errors.Is(err, ErrLocationNotFound) {
+			t.Fatalf("CheckIn() error = %v, want %v", err, ErrLocationNotFound)
+		}
+	})
+
+	t.Run("lokasi kantor nonaktif", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		repo.location.IsActive = false
+		service := newTestService(repo, now)
+
+		_, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest())
+		if !errors.Is(err, ErrInactiveLocation) {
+			t.Fatalf("CheckIn() error = %v, want %v", err, ErrInactiveLocation)
+		}
+	})
+
+	t.Run("koordinat tidak valid", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		service := newTestService(repo, now)
+
+		request := validLocationRequest()
+		request.Latitude = 100
+		_, err := service.CheckIn(context.Background(), userClaims(), request)
+		if !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("CheckIn() error = %v, want %v", err, ErrInvalidInput)
+		}
+	})
+}
+
+func TestServiceAttendanceStateCheckedBeforeGeofence(t *testing.T) {
+	now := time.Date(2026, 8, 5, 2, 0, 0, 0, time.UTC)
+
+	t.Run("check-in ganda tetap konflik", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		service := newTestService(repo, now)
+		if _, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest()); err != nil {
+			t.Fatalf("CheckIn() error = %v", err)
+		}
+
+		request := validLocationRequest()
+		request.Latitude = 100
+		_, err := service.CheckIn(context.Background(), userClaims(), request)
+		if !errors.Is(err, ErrAlreadyCheckedIn) {
+			t.Fatalf("CheckIn() error = %v, want %v", err, ErrAlreadyCheckedIn)
+		}
+	})
+
+	t.Run("check-out sebelum check-in tetap konflik", func(t *testing.T) {
+		repo := newFakeAttendanceRepository()
+		service := newTestService(repo, now)
+
+		request := validLocationRequest()
+		request.Latitude = 100
+		_, err := service.CheckOut(context.Background(), userClaims(), request)
+		if !errors.Is(err, ErrNotCheckedIn) {
+			t.Fatalf("CheckOut() error = %v, want %v", err, ErrNotCheckedIn)
 		}
 	})
 }
@@ -200,6 +327,45 @@ func TestServiceUsesAsiaJakartaAttendanceDate(t *testing.T) {
 	}
 }
 
+func TestServiceUsesBusinessDateForLocationAssignment(t *testing.T) {
+	repo := newFakeAttendanceRepository()
+	service := newTestService(repo, time.Date(2026, 8, 4, 18, 0, 0, 0, time.UTC))
+
+	if _, err := service.CheckIn(context.Background(), userClaims(), validLocationRequest()); err != nil {
+		t.Fatalf("CheckIn() error = %v", err)
+	}
+
+	if got := repo.locationAttendanceDate.Format("2006-01-02"); got != "2026-08-05" {
+		t.Fatalf("location assignment date = %s, want 2026-08-05", got)
+	}
+	if repo.locationAttendanceDate.Location().String() != "Asia/Jakarta" {
+		t.Fatalf("location assignment timezone = %s, want Asia/Jakarta", repo.locationAttendanceDate.Location())
+	}
+}
+
+func TestServiceHistoryIncludesLocationEvidence(t *testing.T) {
+	repo := newFakeAttendanceRepository()
+	repo.history = []HistoryRow{{
+		Record: AttendanceRecord{
+			ID:              "record-id",
+			AttendanceDate:  dateInJakarta(2026, 8, 5),
+			CheckInAt:       time.Date(2026, 8, 5, 1, 0, 0, 0, time.UTC),
+			CheckInLocation: validLocationEvidence(),
+		},
+		Schedule: repo.schedule,
+	}}
+	service := newTestService(repo, time.Date(2026, 8, 5, 2, 0, 0, 0, time.UTC))
+
+	history, err := service.History(context.Background(), userClaims(), HistoryFilter{})
+	if err != nil {
+		t.Fatalf("History() error = %v", err)
+	}
+
+	if len(history.Items) != 1 || history.Items[0].CheckInLocation == nil {
+		t.Fatalf("history evidence = %+v", history.Items)
+	}
+}
+
 func TestServiceHistoryEmptyAndPagination(t *testing.T) {
 	repo := newFakeAttendanceRepository()
 	service := newTestService(repo, time.Date(2026, 8, 5, 2, 0, 0, 0, time.UTC))
@@ -230,9 +396,29 @@ func newTestService(repo *fakeAttendanceRepository, now time.Time) Service {
 	if err != nil {
 		panic(err)
 	}
-	service := NewService(repo, location)
+	service := NewService(repo, location, 50)
 	service.now = func() time.Time { return now }
 	return service
+}
+
+func validLocationRequest() AttendanceLocationRequest {
+	return AttendanceLocationRequest{
+		Latitude:       -6.98946,
+		Longitude:      110.416735,
+		AccuracyMeters: 12.5,
+	}
+}
+
+func validLocationEvidence() *AttendanceLocationEvidence {
+	return &AttendanceLocationEvidence{
+		OfficeLocationID:   "00000000-0000-4000-8000-000000000020",
+		OfficeLocationName: "Kantor PTPN I Regional 3 Semarang",
+		Latitude:           -6.98946,
+		Longitude:          110.416735,
+		AccuracyMeters:     12.5,
+		DistanceMeters:     0,
+		InsideGeofence:     true,
+	}
 }
 
 func userClaims() auth.Claims {
@@ -259,16 +445,27 @@ func newFakeAttendanceRepository() *fakeAttendanceRepository {
 			GraceMinutes: 15,
 			IsActive:     true,
 		},
+		location: AttendanceLocationTarget{
+			OfficeLocationID:   "00000000-0000-4000-8000-000000000020",
+			OfficeLocationName: "Kantor PTPN I Regional 3 Semarang",
+			Latitude:           -6.98946,
+			Longitude:          110.416735,
+			RadiusMeters:       100,
+			IsActive:           true,
+		},
 	}
 }
 
 type fakeAttendanceRepository struct {
-	mu             sync.Mutex
-	user           user.User
-	schedule       WorkSchedule
-	record         *AttendanceRecord
-	history        []HistoryRow
-	createdRecords int
+	mu                     sync.Mutex
+	user                   user.User
+	schedule               WorkSchedule
+	location               AttendanceLocationTarget
+	locationErr            error
+	locationAttendanceDate time.Time
+	record                 *AttendanceRecord
+	history                []HistoryRow
+	createdRecords         int
 }
 
 func (r *fakeAttendanceRepository) Today(_ context.Context, _ string, _ time.Time) (TodayData, error) {
@@ -278,7 +475,18 @@ func (r *fakeAttendanceRepository) Today(_ context.Context, _ string, _ time.Tim
 	return TodayData{User: r.user, Schedule: r.schedule, Record: cloneRecord(r.record)}, nil
 }
 
-func (r *fakeAttendanceRepository) CheckIn(_ context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string) (AttendanceRecord, error) {
+func (r *fakeAttendanceRepository) CurrentOfficeLocation(_ context.Context, _ string, attendanceDate time.Time) (AttendanceLocationTarget, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.locationAttendanceDate = attendanceDate
+	if r.locationErr != nil {
+		return AttendanceLocationTarget{}, r.locationErr
+	}
+	return r.location, nil
+}
+
+func (r *fakeAttendanceRepository) CheckIn(_ context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -286,18 +494,19 @@ func (r *fakeAttendanceRepository) CheckIn(_ context.Context, userID string, att
 		return AttendanceRecord{}, ErrAlreadyCheckedIn
 	}
 	record := AttendanceRecord{
-		ID:             recordID,
-		UserID:         userID,
-		ScheduleID:     r.schedule.ID,
-		AttendanceDate: attendanceDate,
-		CheckInAt:      now,
+		ID:              recordID,
+		UserID:          userID,
+		ScheduleID:      r.schedule.ID,
+		AttendanceDate:  attendanceDate,
+		CheckInAt:       now,
+		CheckInLocation: cloneEvidence(&evidence),
 	}
 	r.record = &record
 	r.createdRecords++
 	return record, nil
 }
 
-func (r *fakeAttendanceRepository) CheckOut(_ context.Context, _ string, _ time.Time, now time.Time) (AttendanceRecord, error) {
+func (r *fakeAttendanceRepository) CheckOut(_ context.Context, _ string, _ time.Time, now time.Time, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -308,6 +517,7 @@ func (r *fakeAttendanceRepository) CheckOut(_ context.Context, _ string, _ time.
 		return AttendanceRecord{}, ErrAlreadyCheckedOut
 	}
 	r.record.CheckOutAt = &now
+	r.record.CheckOutLocation = cloneEvidence(&evidence)
 	return *cloneRecord(r.record), nil
 }
 
@@ -337,6 +547,16 @@ func cloneRecord(record *AttendanceRecord) *AttendanceRecord {
 		return nil
 	}
 	cloned := *record
+	cloned.CheckInLocation = cloneEvidence(record.CheckInLocation)
+	cloned.CheckOutLocation = cloneEvidence(record.CheckOutLocation)
+	return &cloned
+}
+
+func cloneEvidence(evidence *AttendanceLocationEvidence) *AttendanceLocationEvidence {
+	if evidence == nil {
+		return nil
+	}
+	cloned := *evidence
 	return &cloned
 }
 

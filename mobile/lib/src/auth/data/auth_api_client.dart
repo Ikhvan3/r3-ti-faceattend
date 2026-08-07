@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../config/api_config.dart';
+import '../../core/network/api_debug_logger.dart';
 import '../domain/auth_failure.dart';
 import '../domain/auth_token_data.dart';
 import '../domain/user_profile.dart';
@@ -102,8 +103,10 @@ class HttpAuthApiClient implements AuthApi {
         request.body = jsonEncode(body);
       }
 
+      logApiRequest(method, path);
       final streamed = await _client.send(request).timeout(_timeout);
       final response = await http.Response.fromStream(streamed);
+      logApiResponse(method, path, response.statusCode);
       final payload = _decodeObjectResponse(response.body);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -118,21 +121,25 @@ class HttpAuthApiClient implements AuthApi {
 
       return payload;
     } on TimeoutException {
+      logApiException(method, path, 'timeout');
       throw const AuthFailure(
         AuthFailureKind.requestTimeout,
         'Request terlalu lama. Coba lagi.',
       );
     } on SocketException {
+      logApiException(method, path, 'socket');
       throw const AuthFailure(
         AuthFailureKind.apiUnavailable,
         'Layanan belum tersedia. Coba lagi nanti.',
       );
     } on FormatException {
+      logApiException(method, path, 'malformed_response');
       throw const AuthFailure(
         AuthFailureKind.invalidBackendResponse,
         'Respons backend tidak dapat dibaca.',
       );
     } on http.ClientException {
+      logApiException(method, path, 'client');
       throw const AuthFailure(
         AuthFailureKind.apiUnavailable,
         'Layanan belum tersedia. Coba lagi nanti.',
@@ -142,8 +149,8 @@ class HttpAuthApiClient implements AuthApi {
 
   Map<String, Object?> _decodeObjectResponse(String rawBody) {
     final decoded = jsonDecode(rawBody);
-    if (decoded is Map<String, Object?>) {
-      return decoded;
+    if (decoded is Map) {
+      return Map<String, Object?>.from(decoded);
     }
     throw const FormatException('Response bukan object JSON.');
   }

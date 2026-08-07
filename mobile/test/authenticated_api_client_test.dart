@@ -79,4 +79,36 @@ void main() {
     expect(storage.accessToken, isNull);
     expect(storage.refreshToken, isNull);
   });
+
+  test('mengirim JSON body saat tersedia', () async {
+    late http.Request capturedRequest;
+    final httpClient = MockClient((request) async {
+      capturedRequest = request;
+      return http.Response(jsonEncode(<String, Object?>{'status': 'ok'}), 200);
+    });
+    final storage = FakeTokenStorage()..accessToken = 'access-token';
+    final client = AuthenticatedApiClient(
+      baseUrl: 'http://127.0.0.1:8080/api/v1',
+      client: httpClient,
+      tokenStorage: storage,
+      authApi: FakeAuthApi(),
+    );
+
+    await client.send(
+      method: 'POST',
+      path: '/attendance/check-in',
+      body: <String, Object?>{
+        'latitude': -6.98946,
+        'longitude': 110.416735,
+        'accuracy_meters': 12.5,
+      },
+    );
+
+    expect(capturedRequest.headers['content-type'], 'application/json');
+    expect(jsonDecode(capturedRequest.body), <String, Object?>{
+      'latitude': -6.98946,
+      'longitude': 110.416735,
+      'accuracy_meters': 12.5,
+    });
+  });
 }

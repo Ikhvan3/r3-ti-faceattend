@@ -6,8 +6,9 @@ import '../domain/attendance_models.dart';
 
 abstract class AttendanceApi {
   Future<AttendanceToday> getTodayAttendance();
-  Future<AttendanceToday> checkIn();
-  Future<AttendanceToday> checkOut();
+  Future<AttendanceToday> checkIn(AttendanceLocationPayload location);
+  Future<AttendanceToday> checkOut(AttendanceLocationPayload location);
+  Future<LocationRequirement> getLocationRequirement();
   Future<AttendanceHistoryResponse> getAttendanceHistory({
     required int page,
     required int pageSize,
@@ -27,15 +28,39 @@ class HttpAttendanceApiClient implements AttendanceApi {
   }
 
   @override
-  Future<AttendanceToday> checkIn() async {
-    final response = await _send(method: 'POST', path: '/attendance/check-in');
+  Future<AttendanceToday> checkIn(AttendanceLocationPayload location) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/attendance/check-in',
+      body: location.toJson(),
+    );
     return _parseToday(response);
   }
 
   @override
-  Future<AttendanceToday> checkOut() async {
-    final response = await _send(method: 'POST', path: '/attendance/check-out');
+  Future<AttendanceToday> checkOut(AttendanceLocationPayload location) async {
+    final response = await _send(
+      method: 'POST',
+      path: '/attendance/check-out',
+      body: location.toJson(),
+    );
     return _parseToday(response);
+  }
+
+  @override
+  Future<LocationRequirement> getLocationRequirement() async {
+    final response = await _send(
+      method: 'GET',
+      path: '/attendance/location-requirement',
+    );
+    try {
+      return LocationRequirement.fromJson(response.payload['data']);
+    } on FormatException {
+      throw const AttendanceFailure(
+        AttendanceFailureKind.malformedResponse,
+        'Respons kebutuhan lokasi tidak sesuai.',
+      );
+    }
   }
 
   @override
@@ -65,12 +90,14 @@ class HttpAttendanceApiClient implements AttendanceApi {
     required String method,
     required String path,
     Map<String, String>? queryParameters,
+    Map<String, Object?>? body,
   }) async {
     try {
       final response = await _client.send(
         method: method,
         path: path,
         queryParameters: queryParameters,
+        body: body,
       );
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw _mapStatus(response.statusCode, response.payload);
@@ -110,12 +137,24 @@ class HttpAttendanceApiClient implements AttendanceApi {
       );
     }
     if (statusCode == HttpStatus.forbidden) {
+      if (message.contains('luar radius')) {
+        return const AttendanceFailure(
+          AttendanceFailureKind.outsideGeofence,
+          'Anda berada di luar radius lokasi kantor.',
+        );
+      }
       return const AttendanceFailure(
         AttendanceFailureKind.accountForbidden,
         'Akun tidak diizinkan melakukan absensi.',
       );
     }
     if (statusCode == HttpStatus.notFound) {
+      if (message.contains('lokasi')) {
+        return const AttendanceFailure(
+          AttendanceFailureKind.locationAssignmentMissing,
+          'Lokasi kerja belum ditugaskan. Hubungi administrator.',
+        );
+      }
       return const AttendanceFailure(
         AttendanceFailureKind.scheduleUnavailable,
         'Jadwal kerja belum tersedia. Hubungi administrator.',
@@ -137,6 +176,12 @@ class HttpAttendanceApiClient implements AttendanceApi {
       return const AttendanceFailure(
         AttendanceFailureKind.alreadyCheckedIn,
         'Anda sudah melakukan check-in hari ini.',
+      );
+    }
+    if (statusCode == HttpStatus.unprocessableEntity) {
+      return const AttendanceFailure(
+        AttendanceFailureKind.poorAccuracy,
+        'Akurasi GPS belum memenuhi batas. Pindah ke area terbuka lalu coba lagi.',
       );
     }
     if (statusCode >= 500) {

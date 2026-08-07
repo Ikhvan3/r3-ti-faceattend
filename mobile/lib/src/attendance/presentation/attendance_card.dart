@@ -178,7 +178,8 @@ class _ActionButtons extends StatelessWidget {
     final confirmed = await _showAttendanceDialog(
       context: context,
       title: 'Konfirmasi Check-in',
-      message: 'Anda akan melakukan check-in menggunakan waktu server.',
+      message:
+          'Anda akan melakukan check-in menggunakan lokasi perangkat dan waktu server.',
       confirmLabel: 'Check-in',
     );
     if (!context.mounted || !confirmed) {
@@ -198,7 +199,7 @@ class _ActionButtons extends StatelessWidget {
       context: context,
       title: 'Konfirmasi Check-out',
       message:
-          'Anda akan menyelesaikan absensi hari ini menggunakan waktu server.',
+          'Anda akan menyelesaikan absensi hari ini menggunakan lokasi perangkat dan waktu server.',
       confirmLabel: 'Check-out',
     );
     if (!context.mounted || !confirmed) {

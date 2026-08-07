@@ -14,9 +14,10 @@ R3 TI FaceAttend adalah prototype absensi lokal untuk pegawai Divisi Teknologi.
 Prototype saat ini mencakup autentikasi admin, backend Employee Management API,
 antarmuka admin Next.js untuk manajemen pegawai Divisi Teknologi Informasi,
 manajemen jadwal kerja, penugasan jadwal, manajemen lokasi kantor, penugasan
-lokasi, autentikasi mobile untuk pegawai `USER` aktif, dan absensi dasar.
-Enforcement geofence, GPS mobile, face recognition, liveness, laporan, dan
-dashboard statistik belum masuk scope tahap ini.
+lokasi, autentikasi mobile untuk pegawai `USER` aktif, absensi dasar, dan
+enforcement geofence server-side untuk check-in/check-out mobile. Face
+recognition, liveness, laporan, dan dashboard statistik belum masuk scope
+tahap ini.
 
 ## Komponen Lokal
 

@@ -8,6 +8,7 @@ import '../../auth/data/auth_api_client.dart';
 import '../../auth/data/token_storage.dart';
 import '../../auth/domain/auth_failure.dart';
 import '../../config/api_config.dart';
+import 'api_debug_logger.dart';
 
 enum AuthenticatedApiFailureKind {
   sessionExpired,
@@ -41,6 +42,7 @@ abstract class AuthenticatedRequester {
     required String method,
     required String path,
     Map<String, String>? queryParameters,
+    Map<String, Object?>? body,
   });
 }
 
@@ -68,6 +70,7 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
     required String method,
     required String path,
     Map<String, String>? queryParameters,
+    Map<String, Object?>? body,
   }) async {
     final accessToken = await _tokenStorage.readAccessToken();
     if (accessToken == null || accessToken.isEmpty) {
@@ -83,6 +86,7 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
       path: path,
       accessToken: accessToken,
       queryParameters: queryParameters,
+      body: body,
     );
     if (first.statusCode != HttpStatus.unauthorized) {
       return first;
@@ -94,6 +98,7 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
       path: path,
       accessToken: rotatedAccessToken,
       queryParameters: queryParameters,
+      body: body,
     );
   }
 
@@ -102,6 +107,7 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
     required String path,
     required String accessToken,
     Map<String, String>? queryParameters,
+    Map<String, Object?>? body,
   }) async {
     try {
       final uri = _uri(path, queryParameters);
@@ -110,29 +116,39 @@ class AuthenticatedApiClient implements AuthenticatedRequester {
         HttpHeaders.acceptHeader: 'application/json',
         HttpHeaders.authorizationHeader: 'Bearer $accessToken',
       });
+      if (body != null) {
+        request.headers[HttpHeaders.contentTypeHeader] = 'application/json';
+        request.body = jsonEncode(body);
+      }
 
+      logApiRequest(method, path);
       final streamed = await _client.send(request).timeout(_timeout);
       final response = await http.Response.fromStream(streamed);
+      logApiResponse(method, path, response.statusCode);
       return AuthenticatedApiResponse(
         statusCode: response.statusCode,
         payload: _decodeObjectResponse(response.body),
       );
     } on TimeoutException {
+      logApiException(method, path, 'timeout');
       throw const AuthenticatedApiFailure(
         AuthenticatedApiFailureKind.requestTimeout,
         'Request terlalu lama. Coba lagi.',
       );
     } on SocketException {
+      logApiException(method, path, 'socket');
       throw const AuthenticatedApiFailure(
         AuthenticatedApiFailureKind.apiUnavailable,
         'Layanan belum tersedia. Coba lagi nanti.',
       );
     } on FormatException {
+      logApiException(method, path, 'malformed_response');
       throw const AuthenticatedApiFailure(
         AuthenticatedApiFailureKind.malformedResponse,
         'Respons backend tidak dapat dibaca.',
       );
     } on http.ClientException {
+      logApiException(method, path, 'client');
       throw const AuthenticatedApiFailure(
         AuthenticatedApiFailureKind.apiUnavailable,
         'Layanan belum tersedia. Coba lagi nanti.',

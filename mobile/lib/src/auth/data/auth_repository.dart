@@ -19,7 +19,9 @@ class AuthRepository {
     required String password,
   }) async {
     final tokens = await _api.login(email: email, password: password);
-    final user = _validateEmployeeUser(tokens.user);
+    final user = _validateEmployeeUser(
+      await _api.me(accessToken: tokens.accessToken),
+    );
     await _tokenStorage.saveTokens(tokens);
     return user;
   }

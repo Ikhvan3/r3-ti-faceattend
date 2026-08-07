@@ -40,7 +40,38 @@ func (r *PostgresRepository) Today(ctx context.Context, userID string, attendanc
 	return TodayData{User: u, Schedule: schedule, Record: record}, nil
 }
 
-func (r *PostgresRepository) CheckIn(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string) (AttendanceRecord, error) {
+func (r *PostgresRepository) CurrentOfficeLocation(ctx context.Context, userID string, attendanceDate time.Time) (AttendanceLocationTarget, error) {
+	const query = `
+		SELECT ol.id, ol.name, ol.latitude, ol.longitude, ol.radius_meters, ol.is_active
+		FROM employee_location_assignments ela
+		JOIN office_locations ol ON ol.id = ela.office_location_id
+		WHERE ela.user_id = $1
+			AND ela.effective_from <= $2
+			AND (ela.effective_to IS NULL OR ela.effective_to >= $2)
+		ORDER BY ela.effective_from DESC, ela.created_at DESC
+		LIMIT 1
+	`
+
+	var target AttendanceLocationTarget
+	err := r.pool.QueryRow(ctx, query, userID, attendanceDate).Scan(
+		&target.OfficeLocationID,
+		&target.OfficeLocationName,
+		&target.Latitude,
+		&target.Longitude,
+		&target.RadiusMeters,
+		&target.IsActive,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AttendanceLocationTarget{}, ErrLocationNotFound
+	}
+	if err != nil {
+		return AttendanceLocationTarget{}, sanitizeAttendanceError(err)
+	}
+
+	return target, nil
+}
+
+func (r *PostgresRepository) CheckIn(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return AttendanceRecord{}, ErrInternal
@@ -54,13 +85,30 @@ func (r *PostgresRepository) CheckIn(ctx context.Context, userID string, attenda
 
 	const query = `
 		INSERT INTO attendance_records (
-			id, user_id, schedule_id, attendance_date, check_in_at, created_at, updated_at
+			id, user_id, schedule_id, attendance_date, check_in_at,
+			check_in_location_id, check_in_latitude, check_in_longitude,
+			check_in_accuracy_meters, check_in_distance_meters,
+			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-		RETURNING id, user_id, schedule_id, attendance_date, check_in_at, check_out_at, created_at, updated_at
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+		RETURNING id
 	`
 
-	record, err := scanRecord(tx.QueryRow(ctx, query, recordID, userID, schedule.ID, attendanceDate, now))
+	var insertedID string
+	err = tx.QueryRow(
+		ctx,
+		query,
+		recordID,
+		userID,
+		schedule.ID,
+		attendanceDate,
+		now,
+		evidence.OfficeLocationID,
+		evidence.Latitude,
+		evidence.Longitude,
+		evidence.AccuracyMeters,
+		evidence.DistanceMeters,
+	).Scan(&insertedID)
 	if err != nil {
 		return AttendanceRecord{}, sanitizeAttendanceError(err)
 	}
@@ -68,10 +116,10 @@ func (r *PostgresRepository) CheckIn(ctx context.Context, userID string, attenda
 		return AttendanceRecord{}, ErrInternal
 	}
 
-	return record, nil
+	return r.findRecordByID(ctx, r.pool, insertedID)
 }
 
-func (r *PostgresRepository) CheckOut(ctx context.Context, userID string, attendanceDate time.Time, now time.Time) (AttendanceRecord, error) {
+func (r *PostgresRepository) CheckOut(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, evidence AttendanceLocationEvidence) (AttendanceRecord, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return AttendanceRecord{}, ErrInternal
@@ -79,10 +127,15 @@ func (r *PostgresRepository) CheckOut(ctx context.Context, userID string, attend
 	defer rollback(ctx, tx)
 
 	const lockQuery = `
-		SELECT id, user_id, schedule_id, attendance_date, check_in_at, check_out_at, created_at, updated_at
-		FROM attendance_records
-		WHERE user_id = $1 AND attendance_date = $2
-		FOR UPDATE
+		SELECT ar.id, ar.user_id, ar.schedule_id, ar.attendance_date, ar.check_in_at, ar.check_out_at,
+			ar.check_in_location_id, cil.name, ar.check_in_latitude, ar.check_in_longitude, ar.check_in_accuracy_meters, ar.check_in_distance_meters,
+			ar.check_out_location_id, col.name, ar.check_out_latitude, ar.check_out_longitude, ar.check_out_accuracy_meters, ar.check_out_distance_meters,
+			ar.created_at, ar.updated_at
+		FROM attendance_records ar
+		LEFT JOIN office_locations cil ON cil.id = ar.check_in_location_id
+		LEFT JOIN office_locations col ON col.id = ar.check_out_location_id
+		WHERE ar.user_id = $1 AND ar.attendance_date = $2
+		FOR UPDATE OF ar
 	`
 	record, err := scanRecord(tx.QueryRow(ctx, lockQuery, userID, attendanceDate))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -98,11 +151,28 @@ func (r *PostgresRepository) CheckOut(ctx context.Context, userID string, attend
 	const updateQuery = `
 		UPDATE attendance_records
 		SET check_out_at = $3,
+			check_out_location_id = $4,
+			check_out_latitude = $5,
+			check_out_longitude = $6,
+			check_out_accuracy_meters = $7,
+			check_out_distance_meters = $8,
 			updated_at = NOW()
 		WHERE user_id = $1 AND attendance_date = $2
-		RETURNING id, user_id, schedule_id, attendance_date, check_in_at, check_out_at, created_at, updated_at
+		RETURNING id
 	`
-	updated, err := scanRecord(tx.QueryRow(ctx, updateQuery, userID, attendanceDate, now))
+	var updatedID string
+	err = tx.QueryRow(
+		ctx,
+		updateQuery,
+		userID,
+		attendanceDate,
+		now,
+		evidence.OfficeLocationID,
+		evidence.Latitude,
+		evidence.Longitude,
+		evidence.AccuracyMeters,
+		evidence.DistanceMeters,
+	).Scan(&updatedID)
 	if err != nil {
 		return AttendanceRecord{}, sanitizeAttendanceError(err)
 	}
@@ -110,16 +180,21 @@ func (r *PostgresRepository) CheckOut(ctx context.Context, userID string, attend
 		return AttendanceRecord{}, ErrInternal
 	}
 
-	return updated, nil
+	return r.findRecordByID(ctx, r.pool, updatedID)
 }
 
 func (r *PostgresRepository) ListHistory(ctx context.Context, userID string, filter HistoryFilter) ([]HistoryRow, error) {
 	const query = `
-		SELECT ar.id, ar.user_id, ar.schedule_id, ar.attendance_date, ar.check_in_at, ar.check_out_at, ar.created_at, ar.updated_at,
+		SELECT ar.id, ar.user_id, ar.schedule_id, ar.attendance_date, ar.check_in_at, ar.check_out_at,
+			ar.check_in_location_id, cil.name, ar.check_in_latitude, ar.check_in_longitude, ar.check_in_accuracy_meters, ar.check_in_distance_meters,
+			ar.check_out_location_id, col.name, ar.check_out_latitude, ar.check_out_longitude, ar.check_out_accuracy_meters, ar.check_out_distance_meters,
+			ar.created_at, ar.updated_at,
 			ws.id, ws.name, to_char(ws.start_time, 'HH24:MI'), to_char(ws.end_time, 'HH24:MI'),
 			ws.grace_minutes, ws.is_active, ws.created_at, ws.updated_at
 		FROM attendance_records ar
 		JOIN work_schedules ws ON ws.id = ar.schedule_id
+		LEFT JOIN office_locations cil ON cil.id = ar.check_in_location_id
+		LEFT JOIN office_locations col ON col.id = ar.check_out_location_id
 		WHERE ar.user_id = $1
 		ORDER BY ar.attendance_date DESC, ar.created_at DESC
 		LIMIT $2 OFFSET $3
@@ -134,6 +209,18 @@ func (r *PostgresRepository) ListHistory(ctx context.Context, userID string, fil
 	var result []HistoryRow
 	for rows.Next() {
 		var row HistoryRow
+		var checkInLocationID *string
+		var checkInLocationName *string
+		var checkInLatitude *float64
+		var checkInLongitude *float64
+		var checkInAccuracy *float64
+		var checkInDistance *float64
+		var checkOutLocationID *string
+		var checkOutLocationName *string
+		var checkOutLatitude *float64
+		var checkOutLongitude *float64
+		var checkOutAccuracy *float64
+		var checkOutDistance *float64
 		if err := rows.Scan(
 			&row.Record.ID,
 			&row.Record.UserID,
@@ -141,6 +228,18 @@ func (r *PostgresRepository) ListHistory(ctx context.Context, userID string, fil
 			&row.Record.AttendanceDate,
 			&row.Record.CheckInAt,
 			&row.Record.CheckOutAt,
+			&checkInLocationID,
+			&checkInLocationName,
+			&checkInLatitude,
+			&checkInLongitude,
+			&checkInAccuracy,
+			&checkInDistance,
+			&checkOutLocationID,
+			&checkOutLocationName,
+			&checkOutLatitude,
+			&checkOutLongitude,
+			&checkOutAccuracy,
+			&checkOutDistance,
 			&row.Record.CreatedAt,
 			&row.Record.UpdatedAt,
 			&row.Schedule.ID,
@@ -154,6 +253,8 @@ func (r *PostgresRepository) ListHistory(ctx context.Context, userID string, fil
 		); err != nil {
 			return nil, sanitizeAttendanceError(err)
 		}
+		row.Record.CheckInLocation = locationEvidence(checkInLocationID, checkInLocationName, checkInLatitude, checkInLongitude, checkInAccuracy, checkInDistance)
+		row.Record.CheckOutLocation = locationEvidence(checkOutLocationID, checkOutLocationName, checkOutLatitude, checkOutLongitude, checkOutAccuracy, checkOutDistance)
 		result = append(result, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -246,9 +347,14 @@ func (r *PostgresRepository) findSchedule(ctx context.Context, q queryer, userID
 
 func (r *PostgresRepository) findRecord(ctx context.Context, q queryer, userID string, attendanceDate time.Time) (*AttendanceRecord, error) {
 	const query = `
-		SELECT id, user_id, schedule_id, attendance_date, check_in_at, check_out_at, created_at, updated_at
-		FROM attendance_records
-		WHERE user_id = $1 AND attendance_date = $2
+		SELECT ar.id, ar.user_id, ar.schedule_id, ar.attendance_date, ar.check_in_at, ar.check_out_at,
+			ar.check_in_location_id, cil.name, ar.check_in_latitude, ar.check_in_longitude, ar.check_in_accuracy_meters, ar.check_in_distance_meters,
+			ar.check_out_location_id, col.name, ar.check_out_latitude, ar.check_out_longitude, ar.check_out_accuracy_meters, ar.check_out_distance_meters,
+			ar.created_at, ar.updated_at
+		FROM attendance_records ar
+		LEFT JOIN office_locations cil ON cil.id = ar.check_in_location_id
+		LEFT JOIN office_locations col ON col.id = ar.check_out_location_id
+		WHERE ar.user_id = $1 AND ar.attendance_date = $2
 	`
 
 	record, err := scanRecord(q.QueryRow(ctx, query, userID, attendanceDate))
@@ -262,8 +368,38 @@ func (r *PostgresRepository) findRecord(ctx context.Context, q queryer, userID s
 	return &record, nil
 }
 
+func (r *PostgresRepository) findRecordByID(ctx context.Context, q queryer, id string) (AttendanceRecord, error) {
+	const query = `
+		SELECT ar.id, ar.user_id, ar.schedule_id, ar.attendance_date, ar.check_in_at, ar.check_out_at,
+			ar.check_in_location_id, cil.name, ar.check_in_latitude, ar.check_in_longitude, ar.check_in_accuracy_meters, ar.check_in_distance_meters,
+			ar.check_out_location_id, col.name, ar.check_out_latitude, ar.check_out_longitude, ar.check_out_accuracy_meters, ar.check_out_distance_meters,
+			ar.created_at, ar.updated_at
+		FROM attendance_records ar
+		LEFT JOIN office_locations cil ON cil.id = ar.check_in_location_id
+		LEFT JOIN office_locations col ON col.id = ar.check_out_location_id
+		WHERE ar.id = $1
+	`
+	record, err := scanRecord(q.QueryRow(ctx, query, id))
+	if err != nil {
+		return AttendanceRecord{}, sanitizeAttendanceError(err)
+	}
+	return record, nil
+}
+
 func scanRecord(row pgx.Row) (AttendanceRecord, error) {
 	var record AttendanceRecord
+	var checkInLocationID *string
+	var checkInLocationName *string
+	var checkInLatitude *float64
+	var checkInLongitude *float64
+	var checkInAccuracy *float64
+	var checkInDistance *float64
+	var checkOutLocationID *string
+	var checkOutLocationName *string
+	var checkOutLatitude *float64
+	var checkOutLongitude *float64
+	var checkOutAccuracy *float64
+	var checkOutDistance *float64
 	err := row.Scan(
 		&record.ID,
 		&record.UserID,
@@ -271,10 +407,42 @@ func scanRecord(row pgx.Row) (AttendanceRecord, error) {
 		&record.AttendanceDate,
 		&record.CheckInAt,
 		&record.CheckOutAt,
+		&checkInLocationID,
+		&checkInLocationName,
+		&checkInLatitude,
+		&checkInLongitude,
+		&checkInAccuracy,
+		&checkInDistance,
+		&checkOutLocationID,
+		&checkOutLocationName,
+		&checkOutLatitude,
+		&checkOutLongitude,
+		&checkOutAccuracy,
+		&checkOutDistance,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	)
+	if err != nil {
+		return record, err
+	}
+	record.CheckInLocation = locationEvidence(checkInLocationID, checkInLocationName, checkInLatitude, checkInLongitude, checkInAccuracy, checkInDistance)
+	record.CheckOutLocation = locationEvidence(checkOutLocationID, checkOutLocationName, checkOutLatitude, checkOutLongitude, checkOutAccuracy, checkOutDistance)
 	return record, err
+}
+
+func locationEvidence(locationID *string, locationName *string, latitude *float64, longitude *float64, accuracy *float64, distance *float64) *AttendanceLocationEvidence {
+	if locationID == nil || locationName == nil || latitude == nil || longitude == nil || accuracy == nil || distance == nil {
+		return nil
+	}
+	return &AttendanceLocationEvidence{
+		OfficeLocationID:   *locationID,
+		OfficeLocationName: *locationName,
+		Latitude:           *latitude,
+		Longitude:          *longitude,
+		AccuracyMeters:     *accuracy,
+		DistanceMeters:     *distance,
+		InsideGeofence:     true,
+	}
 }
 
 func rollback(ctx context.Context, tx pgx.Tx) {
@@ -282,7 +450,7 @@ func rollback(ctx context.Context, tx pgx.Tx) {
 }
 
 func sanitizeAttendanceError(err error) error {
-	if errors.Is(err, ErrScheduleNotFound) || errors.Is(err, ErrNotCheckedIn) || errors.Is(err, ErrAlreadyCheckedOut) {
+	if errors.Is(err, ErrScheduleNotFound) || errors.Is(err, ErrNotCheckedIn) || errors.Is(err, ErrAlreadyCheckedOut) || errors.Is(err, ErrLocationNotFound) {
 		return err
 	}
 

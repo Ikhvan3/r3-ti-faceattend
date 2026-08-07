@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:r3_ti_faceattend/main.dart';
+import 'package:r3_ti_faceattend/src/attendance/domain/attendance_failure.dart';
 import 'package:r3_ti_faceattend/src/auth/data/auth_repository.dart';
 
 import 'attendance_test_fakes.dart';
@@ -17,6 +18,7 @@ void main() {
           tokenStorage: FakeTokenStorage(),
         ),
         attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
+        locationService: FakeLocationService(),
       ),
     );
     await tester.pumpAndSettle();
@@ -34,6 +36,7 @@ void main() {
           tokenStorage: FakeTokenStorage(),
         ),
         attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
+        locationService: FakeLocationService(),
       ),
     );
     await tester.pumpAndSettle();
@@ -54,6 +57,7 @@ void main() {
           tokenStorage: FakeTokenStorage(),
         ),
         attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
+        locationService: FakeLocationService(),
       ),
     );
     await tester.pumpAndSettle();
@@ -80,6 +84,7 @@ void main() {
           tokenStorage: FakeTokenStorage(),
         ),
         attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
+        locationService: FakeLocationService(),
       ),
     );
     await tester.pumpAndSettle();
@@ -105,6 +110,7 @@ void main() {
       R3TiFaceAttendApp(
         authRepository: AuthRepository(api: api, tokenStorage: storage),
         attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
+        locationService: FakeLocationService(),
       ),
     );
     await tester.pumpAndSettle();
@@ -122,6 +128,7 @@ void main() {
           tokenStorage: FakeTokenStorage(),
         ),
         attendanceRepository: fakeAttendanceRepository(FakeAttendanceApi()),
+        locationService: FakeLocationService(),
       ),
     );
     await tester.pumpAndSettle();
@@ -130,5 +137,145 @@ void main() {
       find.byType(EditableText).last,
     );
     expect(passwordInput.obscureText, isTrue);
+  });
+
+  testWidgets('login tetap membuka Home ketika attendance today gagal', (
+    tester,
+  ) async {
+    final authApi = FakeAuthApi();
+    final storage = FakeTokenStorage();
+    final attendanceApi = FakeAttendanceApi()..todayError = timeoutFailure;
+    final locationService = FakeLocationService();
+
+    await tester.pumpWidget(
+      R3TiFaceAttendApp(
+        authRepository: AuthRepository(api: authApi, tokenStorage: storage),
+        attendanceRepository: fakeAttendanceRepository(attendanceApi),
+        locationService: locationService,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'pegawai@example.test',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 'password');
+    await tester.tap(find.text('Masuk'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Halo, Pegawai Dummy'), findsOneWidget);
+    expect(find.text('R3 TI FaceAttend'), findsNothing);
+    expect(find.text('Request terlalu lama. Coba lagi.'), findsOneWidget);
+    expect(storage.accessToken, 'access-token');
+    expect(locationService.positionCalls, 0);
+  });
+
+  testWidgets('auth tidak dihapus karena attendance session expired', (
+    tester,
+  ) async {
+    final storage = FakeTokenStorage();
+    final attendanceApi = FakeAttendanceApi()
+      ..todayError = const AttendanceFailure(
+        AttendanceFailureKind.sessionExpired,
+        'Session berakhir. Silakan login ulang.',
+      );
+
+    await tester.pumpWidget(
+      R3TiFaceAttendApp(
+        authRepository: AuthRepository(
+          api: FakeAuthApi(),
+          tokenStorage: storage,
+        ),
+        attendanceRepository: fakeAttendanceRepository(attendanceApi),
+        locationService: FakeLocationService(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'pegawai@example.test',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 'password');
+    await tester.tap(find.text('Masuk'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Halo, Pegawai Dummy'), findsOneWidget);
+    expect(find.text('Session berakhir. Silakan login ulang.'), findsOneWidget);
+    expect(storage.accessToken, 'access-token');
+  });
+
+  testWidgets('login tetap membuka Home ketika location requirement gagal', (
+    tester,
+  ) async {
+    final attendanceApi = FakeAttendanceApi()
+      ..locationRequirementError = timeoutFailure;
+    final locationService = FakeLocationService();
+
+    await tester.pumpWidget(
+      R3TiFaceAttendApp(
+        authRepository: AuthRepository(
+          api: FakeAuthApi(),
+          tokenStorage: FakeTokenStorage(),
+        ),
+        attendanceRepository: fakeAttendanceRepository(attendanceApi),
+        locationService: locationService,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'pegawai@example.test',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 'password');
+    await tester.tap(find.text('Masuk'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Halo, Pegawai Dummy'), findsOneWidget);
+    expect(attendanceApi.locationRequirementCalls, 0);
+    expect(locationService.positionCalls, 0);
+  });
+
+  testWidgets('GPS baru dipanggil ketika Check-in ditekan', (tester) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final attendanceApi = FakeAttendanceApi();
+    final locationService = FakeLocationService();
+
+    await tester.pumpWidget(
+      R3TiFaceAttendApp(
+        authRepository: AuthRepository(
+          api: FakeAuthApi(),
+          tokenStorage: FakeTokenStorage(),
+        ),
+        attendanceRepository: fakeAttendanceRepository(attendanceApi),
+        locationService: locationService,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'pegawai@example.test',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 'password');
+    await tester.tap(find.text('Masuk'));
+    await tester.pumpAndSettle();
+
+    expect(locationService.positionCalls, 0);
+
+    final checkInButton = find.text('Check-in').last;
+    await tester.tap(checkInButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Check-in').last);
+    await tester.pumpAndSettle();
+
+    expect(locationService.positionCalls, 1);
+    expect(attendanceApi.checkInCalls, 1);
   });
 }

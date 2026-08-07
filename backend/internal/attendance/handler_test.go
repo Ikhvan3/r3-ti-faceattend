@@ -53,7 +53,13 @@ func TestHandlerTodayCheckInAndCheckOut(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			request := httptest.NewRequest(tt.method, tt.path, nil)
+			var body *strings.Reader
+			if tt.method == http.MethodPost {
+				body = strings.NewReader(validLocationJSON())
+			} else {
+				body = strings.NewReader("")
+			}
+			request := httptest.NewRequest(tt.method, tt.path, body)
 			request.Header.Set("Authorization", "Bearer valid-token")
 			response := httptest.NewRecorder()
 
@@ -74,7 +80,7 @@ func TestHandlerConflictAndInvalidHistoryQuery(t *testing.T) {
 	service.checkInErr = ErrAlreadyCheckedIn
 	handler := protectedHandler(service, userHTTPClaims())
 
-	checkInRequest := httptest.NewRequest(http.MethodPost, "/api/v1/attendance/check-in", nil)
+	checkInRequest := httptest.NewRequest(http.MethodPost, "/api/v1/attendance/check-in", strings.NewReader(validLocationJSON()))
 	checkInRequest.Header.Set("Authorization", "Bearer valid-token")
 	checkInResponse := httptest.NewRecorder()
 	handler.ServeHTTP(checkInResponse, checkInRequest)
@@ -122,16 +128,79 @@ func TestHandlerHistoryDoesNotExposeOtherUserData(t *testing.T) {
 	}
 }
 
-func TestHandlerRejectsNonEmptyCheckInBody(t *testing.T) {
-	handler := protectedHandler(newFakeAttendanceHTTPService(), userHTTPClaims())
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/attendance/check-in", strings.NewReader(`{}`))
+func TestHandlerCheckInLocationBodyValidation(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "empty body", body: ""},
+		{name: "empty object", body: `{}`},
+		{name: "malformed json", body: `{"latitude":`},
+		{name: "unknown field", body: `{"latitude":-6.98946,"longitude":110.416735,"accuracy_meters":12.5,"user_id":"other"}`},
+		{name: "multiple json values", body: validLocationJSON() + `{}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := protectedHandler(newFakeAttendanceHTTPService(), userHTTPClaims())
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/attendance/check-in", strings.NewReader(tt.body))
+			request.Header.Set("Authorization", "Bearer valid-token")
+			response := httptest.NewRecorder()
+
+			handler.ServeHTTP(response, request)
+
+			if response.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d, body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestHandlerPassesLocationRequestToService(t *testing.T) {
+	service := newFakeAttendanceHTTPService()
+	handler := protectedHandler(service, userHTTPClaims())
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/attendance/check-in", strings.NewReader(validLocationJSON()))
 	request.Header.Set("Authorization", "Bearer valid-token")
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)
 
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want %d", response.Code, http.StatusBadRequest)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d, body=%s", response.Code, http.StatusCreated, response.Body.String())
+	}
+	if service.lastLocation.Latitude != -6.98946 || service.lastLocation.Longitude != 110.416735 || service.lastLocation.AccuracyMeters != 12.5 {
+		t.Fatalf("location request = %+v", service.lastLocation)
+	}
+}
+
+func TestHandlerLocationErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "assignment missing", err: ErrLocationNotFound, want: http.StatusNotFound},
+		{name: "outside geofence", err: ErrOutsideGeofence, want: http.StatusForbidden},
+		{name: "poor accuracy", err: ErrPoorAccuracy, want: http.StatusUnprocessableEntity},
+		{name: "inactive location", err: ErrInactiveLocation, want: http.StatusForbidden},
+		{name: "invalid coordinate", err: ErrInvalidInput, want: http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := newFakeAttendanceHTTPService()
+			service.checkInErr = tt.err
+			handler := protectedHandler(service, userHTTPClaims())
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/attendance/check-in", strings.NewReader(validLocationJSON()))
+			request.Header.Set("Authorization", "Bearer valid-token")
+			response := httptest.NewRecorder()
+
+			handler.ServeHTTP(response, request)
+
+			if response.Code != tt.want {
+				t.Fatalf("status = %d, want %d, body=%s", response.Code, tt.want, response.Body.String())
+			}
+		})
 	}
 }
 
@@ -157,11 +226,12 @@ func (v fakeAttendanceVerifier) VerifyAccessToken(token string) (auth.Claims, er
 }
 
 type fakeAttendanceHTTPService struct {
-	todayErr    error
-	checkInErr  error
-	checkOutErr error
-	historyErr  error
-	history     HistoryList
+	todayErr     error
+	checkInErr   error
+	checkOutErr  error
+	historyErr   error
+	history      HistoryList
+	lastLocation AttendanceLocationRequest
 }
 
 func newFakeAttendanceHTTPService() *fakeAttendanceHTTPService {
@@ -183,14 +253,28 @@ func (s *fakeAttendanceHTTPService) Today(_ context.Context, _ auth.Claims) (Dai
 	return DailyStatus{AttendanceDate: "2026-08-05", Schedule: testSchedule(), State: StateNotCheckedIn, CanCheckIn: true}, nil
 }
 
-func (s *fakeAttendanceHTTPService) CheckIn(_ context.Context, _ auth.Claims) (DailyStatus, error) {
+func (s *fakeAttendanceHTTPService) CheckIn(_ context.Context, _ auth.Claims, location AttendanceLocationRequest) (DailyStatus, error) {
+	s.lastLocation = location
 	if s.checkInErr != nil {
 		return DailyStatus{}, s.checkInErr
 	}
-	return DailyStatus{AttendanceDate: "2026-08-05", Schedule: testSchedule(), State: StateCheckedIn, CanCheckOut: true}, nil
+	return DailyStatus{
+		AttendanceDate: "2026-08-05",
+		Schedule:       testSchedule(),
+		State:          StateCheckedIn,
+		CanCheckOut:    true,
+		CheckInLocation: &AttendanceLocationEvidence{
+			OfficeLocationID:   "office-location-id",
+			OfficeLocationName: "Kantor PTPN I Regional 3 Semarang",
+			AccuracyMeters:     location.AccuracyMeters,
+			DistanceMeters:     0,
+			InsideGeofence:     true,
+		},
+	}, nil
 }
 
-func (s *fakeAttendanceHTTPService) CheckOut(_ context.Context, _ auth.Claims) (DailyStatus, error) {
+func (s *fakeAttendanceHTTPService) CheckOut(_ context.Context, _ auth.Claims, location AttendanceLocationRequest) (DailyStatus, error) {
+	s.lastLocation = location
 	if s.checkOutErr != nil {
 		return DailyStatus{}, s.checkOutErr
 	}
@@ -207,6 +291,10 @@ func (s *fakeAttendanceHTTPService) History(_ context.Context, _ auth.Claims, _ 
 
 func testSchedule() WorkSchedule {
 	return WorkSchedule{ID: "schedule-id", Name: "Jadwal Kerja Dummy TI", StartTime: "08:00", EndTime: "17:00", GraceMinutes: 15, IsActive: true}
+}
+
+func validLocationJSON() string {
+	return `{"latitude":-6.98946,"longitude":110.416735,"accuracy_meters":12.5}`
 }
 
 func userHTTPClaims() auth.Claims {

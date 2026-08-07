@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ type Config struct {
 	BusinessTimezone string
 	Database         DatabaseConfig
 	Auth             AuthConfig
+	Geofence         GeofenceConfig
 }
 
 type DatabaseConfig struct {
@@ -32,6 +34,10 @@ type AuthConfig struct {
 	RefreshTokenTTL   time.Duration
 	TokenIssuer       string
 	TokenAudience     string
+}
+
+type GeofenceConfig struct {
+	MaxAccuracyMeters float64
 }
 
 func Load() Config {
@@ -53,6 +59,9 @@ func Load() Config {
 			RefreshTokenTTL:   time.Duration(envInt("AUTH_REFRESH_TOKEN_TTL_HOURS", 168)) * time.Hour,
 			TokenIssuer:       env("AUTH_TOKEN_ISSUER", "r3-ti-faceattend-api"),
 			TokenAudience:     env("AUTH_TOKEN_AUDIENCE", "r3-ti-faceattend-client"),
+		},
+		Geofence: GeofenceConfig{
+			MaxAccuracyMeters: envFloat("GEOFENCE_MAX_ACCURACY_METERS", 50),
 		},
 	}
 }
@@ -86,6 +95,14 @@ func (c AuthConfig) Validate() error {
 	return nil
 }
 
+func (c GeofenceConfig) Validate() error {
+	if math.IsNaN(c.MaxAccuracyMeters) || math.IsInf(c.MaxAccuracyMeters, 0) || c.MaxAccuracyMeters <= 0 {
+		return errors.New("GEOFENCE_MAX_ACCURACY_METERS must be finite and positive")
+	}
+
+	return nil
+}
+
 func env(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -103,6 +120,20 @@ func envInt(key string, fallback int) int {
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		return fallback
+	}
+
+	return parsed
+}
+
+func envFloat(key string, fallback float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return math.NaN()
 	}
 
 	return parsed

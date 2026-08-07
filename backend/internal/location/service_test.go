@@ -196,6 +196,70 @@ func TestLocationAssignmentServiceRules(t *testing.T) {
 	})
 }
 
+func TestLocationAssignmentStatusDateOnlyRules(t *testing.T) {
+	jakarta, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		t.Fatalf("load location: %v", err)
+	}
+	businessDate := time.Date(2026, 8, 6, 0, 0, 0, 0, jakarta)
+
+	tests := []struct {
+		name          string
+		effectiveFrom time.Time
+		effectiveTo   *time.Time
+		want          AssignmentStatus
+	}{
+		{
+			name:          "start besok upcoming",
+			effectiveFrom: dateOnlyInLocation(2026, 8, 7, jakarta),
+			want:          AssignmentStatusUpcoming,
+		},
+		{
+			name:          "start hari ini current",
+			effectiveFrom: dateOnlyInLocation(2026, 8, 6, jakarta),
+			want:          AssignmentStatusCurrent,
+		},
+		{
+			name:          "end hari ini current",
+			effectiveFrom: dateOnlyInLocation(2026, 8, 1, jakarta),
+			effectiveTo:   ptrTime(dateOnlyInLocation(2026, 8, 6, jakarta)),
+			want:          AssignmentStatusCurrent,
+		},
+		{
+			name:          "middle current",
+			effectiveFrom: dateOnlyInLocation(2026, 8, 1, jakarta),
+			effectiveTo:   ptrTime(dateOnlyInLocation(2026, 8, 10, jakarta)),
+			want:          AssignmentStatusCurrent,
+		},
+		{
+			name:          "ended kemarin",
+			effectiveFrom: dateOnlyInLocation(2026, 8, 1, jakarta),
+			effectiveTo:   ptrTime(dateOnlyInLocation(2026, 8, 5, jakarta)),
+			want:          AssignmentStatusEnded,
+		},
+		{
+			name:          "no end date current after start",
+			effectiveFrom: dateOnlyInLocation(2026, 8, 1, jakarta),
+			want:          AssignmentStatusCurrent,
+		},
+		{
+			name:          "postgres date scanned as utc still current",
+			effectiveFrom: dateOnlyInLocation(2026, 8, 6, time.UTC),
+			effectiveTo:   ptrTime(dateOnlyInLocation(2028, 8, 6, time.UTC)),
+			want:          AssignmentStatusCurrent,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := LocationAssignmentRecord{EffectiveFrom: tt.effectiveFrom, EffectiveTo: tt.effectiveTo}
+			if got := assignmentStatus(row, businessDate, jakarta); got != tt.want {
+				t.Fatalf("assignmentStatus() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
 func newTestService(repo *fakeRepository, now time.Time) Service {
 	location, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
@@ -209,6 +273,14 @@ func newTestService(repo *fakeRepository, now time.Time) Service {
 func dateInJakarta(year int, month time.Month, day int) time.Time {
 	location, _ := time.LoadLocation("Asia/Jakarta")
 	return time.Date(year, month, day, 8, 0, 0, 0, location)
+}
+
+func dateOnlyInLocation(year int, month time.Month, day int, location *time.Location) time.Time {
+	return time.Date(year, month, day, 0, 0, 0, 0, location)
+}
+
+func ptrTime(value time.Time) *time.Time {
+	return &value
 }
 
 type fakeRepository struct {

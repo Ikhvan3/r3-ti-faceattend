@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"r3-ti-faceattend/backend/internal/auth"
+	officelocation "r3-ti-faceattend/backend/internal/location"
 	"r3-ti-faceattend/backend/internal/user"
 )
 
@@ -17,20 +18,22 @@ const (
 
 type AttendanceRepository interface {
 	Today(ctx context.Context, userID string, attendanceDate time.Time) (TodayData, error)
-	CheckIn(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string) (AttendanceRecord, error)
-	CheckOut(ctx context.Context, userID string, attendanceDate time.Time, now time.Time) (AttendanceRecord, error)
+	CurrentOfficeLocation(ctx context.Context, userID string, attendanceDate time.Time) (AttendanceLocationTarget, error)
+	CheckIn(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, recordID string, evidence AttendanceLocationEvidence) (AttendanceRecord, error)
+	CheckOut(ctx context.Context, userID string, attendanceDate time.Time, now time.Time, evidence AttendanceLocationEvidence) (AttendanceRecord, error)
 	ListHistory(ctx context.Context, userID string, filter HistoryFilter) ([]HistoryRow, error)
 	CountHistory(ctx context.Context, userID string) (int, error)
 }
 
 type Service struct {
-	repo     AttendanceRepository
-	location *time.Location
-	now      func() time.Time
+	repo                      AttendanceRepository
+	location                  *time.Location
+	maxGeofenceAccuracyMeters float64
+	now                       func() time.Time
 }
 
-func NewService(repo AttendanceRepository, location *time.Location) Service {
-	return Service{repo: repo, location: location, now: time.Now}
+func NewService(repo AttendanceRepository, location *time.Location, maxGeofenceAccuracyMeters float64) Service {
+	return Service{repo: repo, location: location, maxGeofenceAccuracyMeters: maxGeofenceAccuracyMeters, now: time.Now}
 }
 
 func (s Service) Today(ctx context.Context, claims auth.Claims) (DailyStatus, error) {
@@ -50,12 +53,11 @@ func (s Service) Today(ctx context.Context, claims auth.Claims) (DailyStatus, er
 	return dailyStatus(attendanceDate, data.Schedule, data.Record), nil
 }
 
-func (s Service) CheckIn(ctx context.Context, claims auth.Claims) (DailyStatus, error) {
+func (s Service) CheckIn(ctx context.Context, claims auth.Claims, request AttendanceLocationRequest) (DailyStatus, error) {
 	userID, attendanceDate, err := s.requestContext(claims)
 	if err != nil {
 		return DailyStatus{}, err
 	}
-
 	data, err := s.repo.Today(ctx, userID, attendanceDate)
 	if err != nil {
 		return DailyStatus{}, mapRepositoryError(err)
@@ -67,7 +69,12 @@ func (s Service) CheckIn(ctx context.Context, claims auth.Claims) (DailyStatus, 
 		return DailyStatus{}, ErrAlreadyCheckedIn
 	}
 
-	record, err := s.repo.CheckIn(ctx, userID, attendanceDate, s.now().UTC(), newUUID())
+	evidence, err := s.locationEvidence(ctx, userID, attendanceDate, request)
+	if err != nil {
+		return DailyStatus{}, err
+	}
+
+	record, err := s.repo.CheckIn(ctx, userID, attendanceDate, s.now().UTC(), newUUID(), evidence)
 	if err != nil {
 		return DailyStatus{}, mapRepositoryError(err)
 	}
@@ -75,12 +82,11 @@ func (s Service) CheckIn(ctx context.Context, claims auth.Claims) (DailyStatus, 
 	return dailyStatus(attendanceDate, data.Schedule, &record), nil
 }
 
-func (s Service) CheckOut(ctx context.Context, claims auth.Claims) (DailyStatus, error) {
+func (s Service) CheckOut(ctx context.Context, claims auth.Claims, request AttendanceLocationRequest) (DailyStatus, error) {
 	userID, attendanceDate, err := s.requestContext(claims)
 	if err != nil {
 		return DailyStatus{}, err
 	}
-
 	data, err := s.repo.Today(ctx, userID, attendanceDate)
 	if err != nil {
 		return DailyStatus{}, mapRepositoryError(err)
@@ -95,12 +101,55 @@ func (s Service) CheckOut(ctx context.Context, claims auth.Claims) (DailyStatus,
 		return DailyStatus{}, ErrAlreadyCheckedOut
 	}
 
-	record, err := s.repo.CheckOut(ctx, userID, attendanceDate, s.now().UTC())
+	evidence, err := s.locationEvidence(ctx, userID, attendanceDate, request)
+	if err != nil {
+		return DailyStatus{}, err
+	}
+
+	record, err := s.repo.CheckOut(ctx, userID, attendanceDate, s.now().UTC(), evidence)
 	if err != nil {
 		return DailyStatus{}, mapRepositoryError(err)
 	}
 
 	return dailyStatus(attendanceDate, data.Schedule, &record), nil
+}
+
+func (s Service) locationEvidence(ctx context.Context, userID string, attendanceDate time.Time, request AttendanceLocationRequest) (AttendanceLocationEvidence, error) {
+	if !officelocation.ValidLatitude(request.Latitude) || !officelocation.ValidLongitude(request.Longitude) || !officelocation.ValidAccuracyMeters(request.AccuracyMeters) || request.AccuracyMeters <= 0 {
+		return AttendanceLocationEvidence{}, ErrInvalidInput
+	}
+	if request.AccuracyMeters > s.maxGeofenceAccuracyMeters {
+		return AttendanceLocationEvidence{}, ErrPoorAccuracy
+	}
+	target, err := s.repo.CurrentOfficeLocation(ctx, userID, attendanceDate)
+	if err != nil {
+		return AttendanceLocationEvidence{}, mapRepositoryError(err)
+	}
+	if !target.IsActive {
+		return AttendanceLocationEvidence{}, ErrInactiveLocation
+	}
+
+	inside, distance, err := officelocation.WithinRadius(
+		officelocation.Coordinate{Latitude: target.Latitude, Longitude: target.Longitude},
+		officelocation.Coordinate{Latitude: request.Latitude, Longitude: request.Longitude},
+		target.RadiusMeters,
+	)
+	if err != nil {
+		return AttendanceLocationEvidence{}, ErrInvalidInput
+	}
+	if !inside {
+		return AttendanceLocationEvidence{}, ErrOutsideGeofence
+	}
+
+	return AttendanceLocationEvidence{
+		OfficeLocationID:   target.OfficeLocationID,
+		OfficeLocationName: target.OfficeLocationName,
+		Latitude:           request.Latitude,
+		Longitude:          request.Longitude,
+		AccuracyMeters:     request.AccuracyMeters,
+		DistanceMeters:     distance,
+		InsideGeofence:     true,
+	}, nil
 }
 
 func (s Service) History(ctx context.Context, claims auth.Claims, filter HistoryFilter) (HistoryList, error) {
@@ -179,6 +228,8 @@ func dailyStatus(attendanceDate time.Time, schedule WorkSchedule, record *Attend
 
 	status.CheckInAt = &record.CheckInAt
 	status.CheckOutAt = record.CheckOutAt
+	status.CheckInLocation = record.CheckInLocation
+	status.CheckOutLocation = record.CheckOutLocation
 	status.CanCheckIn = false
 	if record.CheckOutAt == nil {
 		status.State = StateCheckedIn
@@ -198,12 +249,14 @@ func historyItem(row HistoryRow) HistoryItem {
 	}
 
 	return HistoryItem{
-		ID:             row.Record.ID,
-		AttendanceDate: formatDate(row.Record.AttendanceDate),
-		Schedule:       row.Schedule,
-		CheckInAt:      row.Record.CheckInAt,
-		CheckOutAt:     row.Record.CheckOutAt,
-		State:          state,
+		ID:               row.Record.ID,
+		AttendanceDate:   formatDate(row.Record.AttendanceDate),
+		Schedule:         row.Schedule,
+		CheckInAt:        row.Record.CheckInAt,
+		CheckOutAt:       row.Record.CheckOutAt,
+		CheckInLocation:  row.Record.CheckInLocation,
+		CheckOutLocation: row.Record.CheckOutLocation,
+		State:            state,
 	}
 }
 
@@ -238,7 +291,7 @@ func formatDate(value time.Time) string {
 
 func mapRepositoryError(err error) error {
 	switch err {
-	case ErrInactiveAccount, ErrScheduleNotFound, ErrInactiveSchedule, ErrAlreadyCheckedIn, ErrNotCheckedIn, ErrAlreadyCheckedOut:
+	case ErrInactiveAccount, ErrScheduleNotFound, ErrInactiveSchedule, ErrAlreadyCheckedIn, ErrNotCheckedIn, ErrAlreadyCheckedOut, ErrLocationNotFound, ErrInactiveLocation, ErrOutsideGeofence, ErrPoorAccuracy, ErrInvalidInput:
 		return err
 	default:
 		return ErrInternal

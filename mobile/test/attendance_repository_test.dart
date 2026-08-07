@@ -33,11 +33,16 @@ void main() {
       );
     final api = HttpAttendanceApiClient(client: requester);
 
-    final today = await api.checkIn();
+    final today = await api.checkIn(locationPayload());
 
     expect(today.state, AttendanceState.checkedIn);
     expect(requester.lastMethod, 'POST');
     expect(requester.lastPath, '/attendance/check-in');
+    expect(requester.lastBody, <String, Object?>{
+      'latitude': -6.98946,
+      'longitude': 110.416735,
+      'accuracy_meters': 12.5,
+    });
   });
 
   test('check-out berhasil', () async {
@@ -55,7 +60,7 @@ void main() {
       );
     final api = HttpAttendanceApiClient(client: requester);
 
-    final today = await api.checkOut();
+    final today = await api.checkOut(locationPayload());
 
     expect(today.state, AttendanceState.completed);
     expect(requester.lastPath, '/attendance/check-out');
@@ -92,7 +97,7 @@ void main() {
     final api = HttpAttendanceApiClient(client: requester);
 
     expect(
-      api.checkIn(),
+      api.checkIn(locationPayload()),
       throwsA(
         isA<AttendanceFailure>()
             .having(
@@ -105,6 +110,72 @@ void main() {
               'message',
               'Anda sudah melakukan check-in hari ini.',
             ),
+      ),
+    );
+  });
+
+  test('422 akurasi GPS dipetakan khusus', () async {
+    final requester = FakeAuthenticatedRequester()
+      ..responses.add(
+        response(422, <String, Object?>{
+          'status': 'error',
+          'message': 'akurasi lokasi belum memenuhi batas',
+        }),
+      );
+    final api = HttpAttendanceApiClient(client: requester);
+
+    expect(
+      api.checkIn(locationPayload()),
+      throwsA(
+        isA<AttendanceFailure>().having(
+          (error) => error.kind,
+          'kind',
+          AttendanceFailureKind.poorAccuracy,
+        ),
+      ),
+    );
+  });
+
+  test('403 luar radius dipetakan khusus', () async {
+    final requester = FakeAuthenticatedRequester()
+      ..responses.add(
+        response(403, <String, Object?>{
+          'status': 'error',
+          'message': 'pegawai berada di luar radius lokasi kantor',
+        }),
+      );
+    final api = HttpAttendanceApiClient(client: requester);
+
+    expect(
+      api.checkIn(locationPayload()),
+      throwsA(
+        isA<AttendanceFailure>().having(
+          (error) => error.kind,
+          'kind',
+          AttendanceFailureKind.outsideGeofence,
+        ),
+      ),
+    );
+  });
+
+  test('404 assignment lokasi dipetakan khusus', () async {
+    final requester = FakeAuthenticatedRequester()
+      ..responses.add(
+        response(404, <String, Object?>{
+          'status': 'error',
+          'message': 'lokasi kerja belum ditugaskan',
+        }),
+      );
+    final api = HttpAttendanceApiClient(client: requester);
+
+    expect(
+      api.checkIn(locationPayload()),
+      throwsA(
+        isA<AttendanceFailure>().having(
+          (error) => error.kind,
+          'kind',
+          AttendanceFailureKind.locationAssignmentMissing,
+        ),
       ),
     );
   });
@@ -141,4 +212,47 @@ void main() {
       'page_size': '20',
     });
   });
+
+  test('location requirement berhasil diparse', () async {
+    final requester = FakeAuthenticatedRequester()
+      ..responses.add(response(200, locationRequirementPayload()));
+    final api = HttpAttendanceApiClient(client: requester);
+
+    final requirement = await api.getLocationRequirement();
+
+    expect(requester.lastMethod, 'GET');
+    expect(requester.lastPath, '/attendance/location-requirement');
+    expect(requirement.assignment.status, 'CURRENT');
+    expect(requirement.officeLocation.name, contains('Kantor'));
+  });
+
+  test('location requirement gagal dipetakan aman', () async {
+    final requester = FakeAuthenticatedRequester()
+      ..responses.add(
+        response(404, <String, Object?>{
+          'status': 'error',
+          'message': 'lokasi kerja belum ditugaskan',
+        }),
+      );
+    final api = HttpAttendanceApiClient(client: requester);
+
+    expect(
+      api.getLocationRequirement(),
+      throwsA(
+        isA<AttendanceFailure>().having(
+          (error) => error.kind,
+          'kind',
+          AttendanceFailureKind.locationAssignmentMissing,
+        ),
+      ),
+    );
+  });
+}
+
+AttendanceLocationPayload locationPayload() {
+  return const AttendanceLocationPayload(
+    latitude: -6.98946,
+    longitude: 110.416735,
+    accuracyMeters: 12.5,
+  );
 }

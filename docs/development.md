@@ -63,12 +63,15 @@ flutter run -d DEVICE_ID `
   --dart-define="API_BASE_URL=http://127.0.0.1:8080/api/v1"
 ```
 
-Pastikan backend aktif, migration attendance sudah dijalankan, dan pegawai
-dummy `USER` aktif sudah memiliki assignment jadwal. Setelah login, beranda
-menampilkan status attendance hari ini, tombol check-in/check-out sesuai state,
-dan halaman riwayat memakai pagination backend. GPS, geofence, kamera,
-verifikasi wajah, liveness, koreksi absensi, cuti, lembur, dan laporan admin
-belum tersedia pada tahap ini.
+Pastikan backend aktif, migration attendance dan lokasi sudah dijalankan, dan
+pegawai dummy `USER` aktif sudah memiliki assignment jadwal serta assignment
+lokasi untuk tanggal bisnis hari ini. Aktifkan GPS perangkat. Setelah login,
+beranda menampilkan status attendance hari ini, tombol check-in/check-out
+sesuai state, dan halaman riwayat memakai pagination backend. Check-in dan
+check-out mengambil satu lokasi terbaru dari perangkat, mengirim latitude,
+longitude, dan accuracy ke Golang API, lalu backend melakukan enforcement
+geofence server-side. Kamera, verifikasi wajah, liveness, koreksi absensi,
+cuti, lembur, dan laporan admin belum tersedia pada tahap ini.
 
 Verifikasi otomatis mobile:
 
@@ -281,8 +284,10 @@ Alur create dan end penugasan lokasi:
 5. Detail assignment menyediakan tombol `Akhiri Penugasan` untuk assignment
    yang belum berakhir. Tanggal akhir bersifat inklusif.
 
-Tahap ini hanya menambahkan UI admin dan BFF untuk data lokasi. Mobile belum
-meminta GPS dan check-in/check-out belum melakukan enforcement geofence.
+Data lokasi dan penugasan lokasi menjadi sumber enforcement geofence untuk
+check-in/check-out mobile. Mobile tidak melakukan polling GPS, tidak menyimpan
+riwayat koordinat lokal, dan tidak mengirim `user_id`, `location_id`, jarak,
+atau timestamp perangkat.
 
 ## Backend
 
@@ -331,6 +336,7 @@ Variabel yang digunakan backend:
 - `AUTH_REFRESH_TOKEN_TTL_HOURS`
 - `AUTH_TOKEN_ISSUER`
 - `AUTH_TOKEN_AUDIENCE`
+- `GEOFENCE_MAX_ACCURACY_METERS`
 
 PowerShell dapat memuat nilai untuk sesi terminal seperti ini:
 
@@ -349,13 +355,15 @@ $env:AUTH_ACCESS_TOKEN_TTL_MINUTES="15"
 $env:AUTH_REFRESH_TOKEN_TTL_HOURS="168"
 $env:AUTH_TOKEN_ISSUER="r3-ti-faceattend-api"
 $env:AUTH_TOKEN_AUDIENCE="r3-ti-faceattend-client"
+$env:GEOFENCE_MAX_ACCURACY_METERS="50"
 go run ./cmd/api
 ```
 
 `AUTH_ACCESS_TOKEN_SECRET` wajib diisi dan tidak boleh dicetak ke log. TTL
 access token dan refresh token harus bernilai positif.
 `BUSINESS_TIMEZONE` default `Asia/Jakarta` dan harus bernilai timezone IANA
-yang valid.
+yang valid. `GEOFENCE_MAX_ACCURACY_METERS` default `50` dan harus berupa angka
+finite lebih besar dari `0`.
 
 ### Seed Admin Lokal
 
@@ -596,15 +604,20 @@ Alur uji manual dengan PostgreSQL lokal:
 2. Simpan access token ke header Bearer.
 3. `GET /api/v1/attendance/today` sebelum check-in harus menampilkan
    `NOT_CHECKED_IN`.
-4. `POST /api/v1/attendance/check-in` dengan body kosong harus HTTP `201`.
+4. `POST /api/v1/attendance/check-in` dengan body latitude, longitude, dan
+   `accuracy_meters` harus HTTP `201`.
 5. Check-in kedua harus HTTP `409`.
 6. `GET /api/v1/attendance/today` harus menampilkan `CHECKED_IN`.
-7. `POST /api/v1/attendance/check-out` dengan body kosong harus HTTP `200`.
+7. `POST /api/v1/attendance/check-out` dengan body latitude, longitude, dan
+   `accuracy_meters` harus HTTP `200`.
 8. Check-out kedua harus HTTP `409`.
 9. `GET /api/v1/attendance/today` harus menampilkan `COMPLETED`.
 10. `GET /api/v1/attendance/history` harus menampilkan record user tersebut.
-11. Token `ADMIN` harus ditolak HTTP `403`.
-12. Token `USER` lain tidak dapat melihat record user tersebut.
+11. Kolom evidence `check_in_location_id`, `check_in_latitude`,
+    `check_in_longitude`, `check_in_accuracy_meters`,
+    `check_in_distance_meters`, dan pasangan check-out harus terisi.
+12. Token `ADMIN` harus ditolak HTTP `403`.
+13. Token `USER` lain tidak dapat melihat record user tersebut.
 
 ### Office Location Backend
 
@@ -629,8 +642,8 @@ Endpoint user:
 
 Semua route admin membutuhkan token role `ADMIN`. Endpoint
 `location-requirement` hanya menerima token role `USER` dan mengambil identitas
-pegawai dari token. Tahap ini tidak mewajibkan koordinat pada check-in/check-out
-agar mobile attendance lama tetap kompatibel.
+pegawai dari token. Check-in/check-out kini wajib menerima koordinat perangkat
+dan melakukan enforcement geofence di backend.
 
 Alur uji manual dengan PostgreSQL lokal:
 
@@ -652,13 +665,13 @@ Alur uji manual dengan PostgreSQL lokal:
 14. Token `USER` harus ditolak dari route admin lokasi.
 15. Token `ADMIN` harus ditolak dari endpoint `location-requirement`.
 16. Pastikan `POST /api/v1/attendance/check-in` dan
-    `POST /api/v1/attendance/check-out` dengan body kosong tetap bekerja.
+    `POST /api/v1/attendance/check-out` dengan body koordinat di dalam radius
+    tetap bekerja.
 17. Pastikan record attendance lama tetap terbaca dari `today` dan `history`.
 
-Keterbatasan: fondasi ini belum mendeteksi GPS spoofing, belum meminta lokasi
-perangkat, dan belum melakukan enforcement geofence. Tahap berikutnya dapat
-menambahkan payload koordinat opsional/bertahap pada attendance, menghitung
-jarak server-side, lalu mengaktifkan enforcement setelah mobile siap.
+Keterbatasan: fondasi ini belum mendeteksi GPS spoofing, belum memakai kamera,
+belum melakukan face recognition/liveness, dan belum melakukan background
+location atau tracking periodik.
 
 ### Health Check
 
