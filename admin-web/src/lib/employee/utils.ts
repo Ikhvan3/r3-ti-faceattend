@@ -1,5 +1,9 @@
 import type { AccountStatus } from "@/lib/auth/types";
-import type { Employee, EmployeeListQuery } from "@/lib/employee/types";
+import type {
+  Employee,
+  EmployeeFaceEnrollment,
+  EmployeeListQuery,
+} from "@/lib/employee/types";
 
 export const EMPLOYEE_STATUSES: AccountStatus[] = [
   "ACTIVE",
@@ -157,8 +161,35 @@ export function isEmployee(value: unknown): value is Employee {
     (typeof value.position === "string" || value.position === null) &&
     (value.role === "ADMIN" || value.role === "USER") &&
     isAccountStatus(value.account_status) &&
+    (value.face_enrollment === undefined ||
+      isEmployeeFaceEnrollment(value.face_enrollment)) &&
     typeof value.created_at === "string" &&
     typeof value.updated_at === "string"
+  );
+}
+
+export function isEmployeeFaceEnrollment(
+  value: unknown,
+): value is EmployeeFaceEnrollment {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const validStatus =
+    value.face_status === "ENROLLED" || value.face_status === "NOT_ENROLLED";
+  const validModel =
+    value.embedding_model === undefined || typeof value.embedding_model === "string";
+  const validVersion =
+    value.embedding_version === undefined ||
+    typeof value.embedding_version === "string";
+  const validEnrolledAt =
+    value.enrolled_at === undefined || typeof value.enrolled_at === "string";
+
+  return (
+    typeof value.enrolled === "boolean" &&
+    validStatus &&
+    validModel &&
+    validVersion &&
+    validEnrolledAt
   );
 }
 
