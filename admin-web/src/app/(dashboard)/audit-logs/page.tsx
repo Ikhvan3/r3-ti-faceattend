@@ -45,7 +45,19 @@ export default async function AuditLogsPage({
         title="Audit Log"
       />
 
+      {query.entity_id ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <span>Menampilkan audit untuk satu record yang dipilih dari halaman detail.</span>
+          <Link className="font-semibold hover:text-emerald-950" href="/audit-logs">
+            Tampilkan semua audit
+          </Link>
+        </div>
+      ) : null}
+
       <form className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 md:grid-cols-5" method="GET">
+        {query.entity_id ? (
+          <input name="entity_id" type="hidden" value={query.entity_id} />
+        ) : null}
         <label className="text-sm font-medium text-slate-700">
           Aksi
           <select
@@ -197,6 +209,7 @@ function parseQuery(
 ): AuditLogQuery {
   const action = first(params.action);
   const entity = first(params.entity_type);
+  const entityID = first(params.entity_id);
   return {
     action: ACTIONS.includes(action as AuditAction)
       ? (action as AuditAction)
@@ -204,6 +217,7 @@ function parseQuery(
     entity_type: ENTITIES.includes(entity as AuditEntityType)
       ? (entity as AuditEntityType)
       : undefined,
+    entity_id: isUuid(entityID) ? entityID : undefined,
     date_from: first(params.date_from) || undefined,
     date_to: first(params.date_to) || undefined,
     page: positiveInt(first(params.page), 1),
@@ -215,6 +229,7 @@ function pageHref(query: AuditLogQuery, page: number): string {
   const params = new URLSearchParams();
   if (query.action) params.set("action", query.action);
   if (query.entity_type) params.set("entity_type", query.entity_type);
+  if (query.entity_id) params.set("entity_id", query.entity_id);
   if (query.date_from) params.set("date_from", query.date_from);
   if (query.date_to) params.set("date_to", query.date_to);
   params.set("page", String(page));
@@ -228,4 +243,8 @@ function first(value: string | string[] | undefined): string {
 function positiveInt(value: string, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
