@@ -2,7 +2,8 @@ package user
 
 import (
 	"context"
-	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func (r *PostgresRepository) ListEmployeeFaceEnrollments(ctx context.Context, userIDs []string) (map[string]EmployeeFaceEnrollment, error) {
@@ -28,7 +29,7 @@ func (r *PostgresRepository) ListEmployeeFaceEnrollments(ctx context.Context, us
 			status           string
 			embeddingModel   string
 			embeddingVersion string
-			enrolledAt       *time.Time
+			enrolledAt       pgtype.Timestamptz
 		)
 		if err := rows.Scan(
 			&userID,
@@ -39,13 +40,17 @@ func (r *PostgresRepository) ListEmployeeFaceEnrollments(ctx context.Context, us
 		); err != nil {
 			return nil, sanitizePostgresError(err)
 		}
-		result[userID] = EmployeeFaceEnrollment{
+		item := EmployeeFaceEnrollment{
 			Enrolled:         status == "ENROLLED",
 			FaceStatus:       status,
 			EmbeddingModel:   embeddingModel,
 			EmbeddingVersion: embeddingVersion,
-			EnrolledAt:       enrolledAt,
 		}
+		if enrolledAt.Valid {
+			value := enrolledAt.Time
+			item.EnrolledAt = &value
+		}
+		result[userID] = item
 	}
 	if err := rows.Err(); err != nil {
 		return nil, sanitizePostgresError(err)
