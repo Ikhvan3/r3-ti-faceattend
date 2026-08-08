@@ -71,7 +71,7 @@ func TestAdminAttendanceCorrectionServiceValidation(t *testing.T) {
 		fakeCorrectionDetailReader{},
 		time.FixedZone("Asia/Jakarta", 7*60*60),
 	)
-	checkOutBefore := "07:00"
+	invalidCheckOut := "7pm"
 
 	tests := []struct {
 		name   string
@@ -102,11 +102,11 @@ func TestAdminAttendanceCorrectionServiceValidation(t *testing.T) {
 			want:   ErrAttendanceCorrectionInvalid,
 		},
 		{
-			name:   "invalid check out format",
+			name:   "invalid check out",
 			claims: correctionAdminClaims(),
 			id:     correctionAttendanceID,
-			input:  AdminAttendanceCorrectionInput{CheckInTime: "08:00", CheckOutTime: &checkOutBefore, Reason: "alasan valid"},
-			want:   nil,
+			input:  AdminAttendanceCorrectionInput{CheckInTime: "08:00", CheckOutTime: &invalidCheckOut, Reason: "alasan valid"},
+			want:   ErrAttendanceCorrectionInvalid,
 		},
 		{
 			name:   "short reason",
@@ -120,12 +120,6 @@ func TestAdminAttendanceCorrectionServiceValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := service.Correct(context.Background(), tt.claims, tt.id, tt.input)
-			if tt.want == nil {
-				if err != nil {
-					t.Fatalf("Correct() error = %v", err)
-				}
-				return
-			}
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("Correct() error = %v, want %v", err, tt.want)
 			}
