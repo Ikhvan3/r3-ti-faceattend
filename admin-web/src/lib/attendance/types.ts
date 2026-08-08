@@ -73,6 +73,12 @@ export type AdminAttendanceDetail = {
   check_out_location: AdminAttendanceLocationEvidence | null;
 };
 
+export type AdminAttendanceCorrectionInput = {
+  check_in_time: string;
+  check_out_time: string | null;
+  reason: string;
+};
+
 export type AdminAttendanceListResponse = {
   items: AdminAttendanceListItem[];
   page: number;

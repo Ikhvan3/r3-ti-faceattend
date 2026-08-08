@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/employees", label: "Pegawai TI" },
   { href: "/attendance", label: "Presensi" },
+  { href: "/audit-logs", label: "Audit Log" },
   { href: "/work-schedules", label: "Jadwal Kerja" },
   { href: "/schedule-assignments", label: "Penugasan Jadwal" },
   { href: "/office-locations", label: "Lokasi Kantor" },

@@ -8,7 +8,7 @@ import (
 	"r3-ti-faceattend/backend/internal/user"
 )
 
-func (s Service) AdminReset(ctx context.Context, claims auth.Claims, targetUserID string) error {
+func (s Service) AdminReset(ctx context.Context, claims auth.Claims, targetUserID string, _ ...string) error {
 	if strings.TrimSpace(claims.Subject) == "" || claims.Role != user.RoleAdmin {
 		return ErrForbidden
 	}

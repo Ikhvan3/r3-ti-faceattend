@@ -133,6 +133,21 @@ export function formatBusinessTime(value: string | null): string {
   }).format(date);
 }
 
+export function formatBusinessTimeInput(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Jakarta",
+  }).formatToParts(date);
+  const hour = parts.find((part) => part.type === "hour")?.value;
+  const minute = parts.find((part) => part.type === "minute")?.value;
+  return hour && minute ? `${hour}:${minute}` : null;
+}
+
 function isAttendanceListItem(
   value: unknown,
 ): value is AdminAttendanceListItem {

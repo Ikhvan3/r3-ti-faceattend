@@ -1,18 +1,27 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { AttendanceCorrectionDialog } from "@/app/(dashboard)/attendance/_components/attendance-correction-dialog";
 import { DetailItem } from "@/app/(dashboard)/employees/_components/detail-item";
 import {
   PageHeader,
   SecondaryLink,
 } from "@/app/(dashboard)/employees/_components/page-header";
+import type { AuditLogItem } from "@/lib/audit/types";
+import {
+  auditSnapshotSummary,
+  formatAuditDateTime,
+} from "@/lib/audit/utils";
 import { SafeApiError } from "@/lib/auth/types";
 import type { AdminAttendanceLocationEvidence } from "@/lib/attendance/types";
 import {
   attendanceStateLabel,
   formatBusinessDate,
   formatBusinessTime,
+  formatBusinessTimeInput,
 } from "@/lib/attendance/utils";
 import { getAdminAttendanceDetail } from "@/lib/server/admin-attendance-bff";
+import { getAdminAuditLogs } from "@/lib/server/admin-audit-bff";
 import { requireAdmin } from "@/lib/server/session";
 
 export default async function AttendanceDetailPage({
@@ -39,11 +48,41 @@ export default async function AttendanceDetailPage({
     throw error;
   }
 
+  let correctionHistory: AuditLogItem[] = [];
+  try {
+    const audit = await getAdminAuditLogs({
+      action: "ATTENDANCE_CORRECTED",
+      entity_type: "ATTENDANCE_RECORD",
+      entity_id: attendance.id,
+      page: 1,
+      page_size: 10,
+    });
+    correctionHistory = audit.items;
+  } catch (error) {
+    if (error instanceof SafeApiError && error.code === "UNAUTHORIZED") {
+      redirect("/login");
+    }
+    throw error;
+  }
+
+  const checkInInput = formatBusinessTimeInput(attendance.check_in_at) ?? "";
+  const checkOutInput = formatBusinessTimeInput(attendance.check_out_at);
+
   return (
     <section className="mx-auto max-w-5xl space-y-6">
       <PageHeader
-        action={<SecondaryLink href="/attendance">Kembali</SecondaryLink>}
-        description="Detail presensi read-only. Data biometrik, token, dan verification grant tidak ditampilkan."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <AttendanceCorrectionDialog
+              attendanceID={attendance.id}
+              currentCheckIn={checkInInput}
+              currentCheckOut={checkOutInput}
+              employeeName={attendance.employee.name}
+            />
+            <SecondaryLink href="/attendance">Kembali</SecondaryLink>
+          </div>
+        }
+        description="Detail presensi dan bukti lokasi. Koreksi administratif selalu membutuhkan alasan dan dicatat pada audit log."
         title={`Presensi ${attendance.employee.name}`}
       />
 
@@ -59,9 +98,75 @@ export default async function AttendanceDetailPage({
         <DetailItem label="Toleransi Jadwal" value={`${attendance.schedule.grace_minutes} menit`} />
       </div>
 
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        Koreksi Admin tidak membuat bukti GPS baru. Jika jam check-out ditambahkan
+        secara manual, bukti lokasi check-out tetap kosong.
+      </div>
+
+      <CorrectionHistory entityID={attendance.id} items={correctionHistory} />
       <EvidenceCard title="Lokasi Check-in" evidence={attendance.check_in_location} />
       <EvidenceCard title="Lokasi Check-out" evidence={attendance.check_out_location} />
     </section>
+  );
+}
+
+function CorrectionHistory({
+  entityID,
+  items,
+}: {
+  entityID: string;
+  items: AuditLogItem[];
+}) {
+  const auditHref = `/audit-logs?action=ATTENDANCE_CORRECTED&entity_type=ATTENDANCE_RECORD&entity_id=${encodeURIComponent(entityID)}`;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-slate-950">Riwayat Koreksi</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Maksimal 10 koreksi terbaru untuk record presensi ini.
+          </p>
+        </div>
+        <Link
+          className="text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+          href={auditHref}
+        >
+          Buka Audit Log
+        </Link>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="mt-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          Presensi ini belum pernah dikoreksi Admin.
+        </p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {items.map((item) => {
+            const snapshot = auditSnapshotSummary(item);
+            return (
+              <div className="rounded-lg border border-slate-200 p-4" key={item.id}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-slate-900">
+                    {item.actor_email}
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    {formatAuditDateTime(item.created_at)}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                  <p><span className="font-semibold">Sebelum:</span> {snapshot.before}</p>
+                  <p><span className="font-semibold">Sesudah:</span> {snapshot.after}</p>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  <span className="font-semibold text-slate-800">Alasan:</span> {item.reason}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

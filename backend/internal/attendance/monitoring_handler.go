@@ -2,10 +2,14 @@ package attendance
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"r3-ti-faceattend/backend/internal/auth"
 )
 
 type AdminAttendanceMonitoringHTTPService interface {
@@ -14,12 +18,21 @@ type AdminAttendanceMonitoringHTTPService interface {
 	Detail(ctx context.Context, id string) (AdminAttendanceDetail, error)
 }
 
-type AdminAttendanceMonitoringHandler struct {
-	service AdminAttendanceMonitoringHTTPService
+type AdminAttendanceCorrectionHTTPService interface {
+	Correct(ctx context.Context, claims auth.Claims, id string, input AdminAttendanceCorrectionInput) (AdminAttendanceDetail, error)
 }
 
-func NewAdminAttendanceMonitoringHandler(service AdminAttendanceMonitoringHTTPService) AdminAttendanceMonitoringHandler {
-	return AdminAttendanceMonitoringHandler{service: service}
+type AdminAttendanceMonitoringHandler struct {
+	service    AdminAttendanceMonitoringHTTPService
+	correction AdminAttendanceCorrectionHTTPService
+}
+
+func NewAdminAttendanceMonitoringHandler(service AdminAttendanceMonitoringHTTPService, correction ...AdminAttendanceCorrectionHTTPService) AdminAttendanceMonitoringHandler {
+	handler := AdminAttendanceMonitoringHandler{service: service}
+	if len(correction) > 0 {
+		handler.correction = correction[0]
+	}
+	return handler
 }
 
 func (h AdminAttendanceMonitoringHandler) Summary(w http.ResponseWriter, r *http.Request) {
@@ -70,20 +83,76 @@ func (h AdminAttendanceMonitoringHandler) Collection(w http.ResponseWriter, r *h
 }
 
 func (h AdminAttendanceMonitoringHandler) Resource(w http.ResponseWriter, r *http.Request) {
-	if !adminAllowMethod(w, r, http.MethodGet) {
-		return
-	}
-	id := strings.TrimPrefix(r.URL.Path, "/api/v1/admin/attendance/")
-	if id == "" || strings.Contains(id, "/") {
+	resource := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/admin/attendance/"), "/")
+	if resource == "" {
 		adminWriteError(w, http.StatusNotFound, "presensi tidak ditemukan")
 		return
 	}
-	result, err := h.service.Detail(r.Context(), id)
+	parts := strings.Split(resource, "/")
+
+	if len(parts) == 2 && parts[1] == "correction" {
+		h.correct(w, r, parts[0])
+		return
+	}
+	if len(parts) != 1 {
+		adminWriteError(w, http.StatusNotFound, "presensi tidak ditemukan")
+		return
+	}
+	if !adminAllowMethod(w, r, http.MethodGet) {
+		return
+	}
+	result, err := h.service.Detail(r.Context(), parts[0])
 	if err != nil {
 		h.writeError(w, err)
 		return
 	}
 	adminWriteJSON(w, http.StatusOK, adminResponse{Status: "ok", Message: "detail presensi berhasil dibaca", Data: result})
+}
+
+func (h AdminAttendanceMonitoringHandler) correct(w http.ResponseWriter, r *http.Request, id string) {
+	if h.correction == nil {
+		adminWriteError(w, http.StatusNotFound, "koreksi presensi belum tersedia")
+		return
+	}
+	if !adminAllowMethod(w, r, http.MethodPatch) {
+		return
+	}
+
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		adminWriteError(w, http.StatusUnauthorized, "token tidak valid")
+		return
+	}
+
+	var input AdminAttendanceCorrectionInput
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		adminWriteError(w, http.StatusBadRequest, "data koreksi presensi tidak valid")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		adminWriteError(w, http.StatusBadRequest, "data koreksi presensi tidak valid")
+		return
+	}
+
+	result, err := h.correction.Correct(r.Context(), claims, id, input)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidInput), errors.Is(err, ErrAttendanceCorrectionInvalid):
+			adminWriteError(w, http.StatusBadRequest, "jam koreksi presensi tidak valid")
+		case errors.Is(err, ErrAttendanceCorrectionReason):
+			adminWriteError(w, http.StatusBadRequest, "alasan koreksi wajib diisi minimal 5 karakter")
+		case errors.Is(err, ErrAttendanceCorrectionForbidden):
+			adminWriteError(w, http.StatusForbidden, "akses admin diperlukan")
+		case errors.Is(err, ErrAdminAttendanceNotFound):
+			adminWriteError(w, http.StatusNotFound, "presensi tidak ditemukan")
+		default:
+			adminWriteError(w, http.StatusInternalServerError, "terjadi kesalahan internal")
+		}
+		return
+	}
+	adminWriteJSON(w, http.StatusOK, adminResponse{Status: "ok", Message: "koreksi presensi berhasil disimpan", Data: result})
 }
 
 func (h AdminAttendanceMonitoringHandler) writeError(w http.ResponseWriter, err error) {
