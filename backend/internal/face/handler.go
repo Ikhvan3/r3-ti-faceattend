@@ -162,6 +162,8 @@ func (h Handler) writeFaceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "wajah tidak sesuai dengan data yang terdaftar")
 	case errors.Is(err, ErrProfileNotFound):
 		writeError(w, http.StatusNotFound, "enrollment wajah tidak ditemukan")
+	case errors.Is(err, ErrDuplicateBiometric):
+		writeError(w, http.StatusConflict, "wajah ini telah terdaftar pada akun lain")
 	case errors.Is(err, ErrAlreadyEnrolled):
 		writeError(w, http.StatusConflict, "wajah sudah terdaftar")
 	default:
