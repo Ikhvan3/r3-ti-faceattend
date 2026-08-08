@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
+import { AttendanceCorrectionDialog } from "@/app/(dashboard)/attendance/_components/attendance-correction-dialog";
 import { DetailItem } from "@/app/(dashboard)/employees/_components/detail-item";
 import {
   PageHeader,
@@ -11,6 +12,7 @@ import {
   attendanceStateLabel,
   formatBusinessDate,
   formatBusinessTime,
+  formatBusinessTimeInput,
 } from "@/lib/attendance/utils";
 import { getAdminAttendanceDetail } from "@/lib/server/admin-attendance-bff";
 import { requireAdmin } from "@/lib/server/session";
@@ -39,11 +41,24 @@ export default async function AttendanceDetailPage({
     throw error;
   }
 
+  const checkInInput = formatBusinessTimeInput(attendance.check_in_at) ?? "";
+  const checkOutInput = formatBusinessTimeInput(attendance.check_out_at);
+
   return (
     <section className="mx-auto max-w-5xl space-y-6">
       <PageHeader
-        action={<SecondaryLink href="/attendance">Kembali</SecondaryLink>}
-        description="Detail presensi read-only. Data biometrik, token, dan verification grant tidak ditampilkan."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <AttendanceCorrectionDialog
+              attendanceID={attendance.id}
+              currentCheckIn={checkInInput}
+              currentCheckOut={checkOutInput}
+              employeeName={attendance.employee.name}
+            />
+            <SecondaryLink href="/attendance">Kembali</SecondaryLink>
+          </div>
+        }
+        description="Detail presensi dan bukti lokasi. Koreksi administratif selalu membutuhkan alasan dan dicatat pada audit log."
         title={`Presensi ${attendance.employee.name}`}
       />
 
@@ -57,6 +72,12 @@ export default async function AttendanceDetailPage({
         <DetailItem label="Status" value={attendanceStateLabel(attendance.attendance_state)} />
         <DetailItem label="Keterlambatan" value={attendance.is_late ? "Terlambat" : "Tidak terlambat"} />
         <DetailItem label="Toleransi Jadwal" value={`${attendance.schedule.grace_minutes} menit`} />
+      </div>
+
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+        Koreksi Admin tidak membuat bukti GPS baru. Jika jam check-out ditambahkan
+        secara manual, bukti lokasi check-out tetap kosong. Riwayat perubahan dapat
+        ditinjau melalui menu Audit Log.
       </div>
 
       <EvidenceCard title="Lokasi Check-in" evidence={attendance.check_in_location} />
