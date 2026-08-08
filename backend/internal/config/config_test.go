@@ -162,6 +162,18 @@ func TestLoadReadsFaceVerificationThreshold(t *testing.T) {
 }
 
 func TestLoadDotEnvReadsFileWithoutOverridingExistingEnv(t *testing.T) {
+	originalDBHost, hadDBHost := os.LookupEnv("DB_HOST")
+	if err := os.Unsetenv("DB_HOST"); err != nil {
+		t.Fatalf("Unsetenv(DB_HOST) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if hadDBHost {
+			_ = os.Setenv("DB_HOST", originalDBHost)
+			return
+		}
+		_ = os.Unsetenv("DB_HOST")
+	})
+
 	t.Setenv("AUTH_ACCESS_TOKEN_SECRET", "from-shell")
 	envPath := filepath.Join(t.TempDir(), ".env")
 	if err := os.WriteFile(
