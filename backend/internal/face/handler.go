@@ -17,6 +17,7 @@ type HTTPService interface {
 	Enroll(ctx context.Context, claims auth.Claims, input EnrollmentInput) (StatusResponse, error)
 	Verify(ctx context.Context, claims auth.Claims, input VerificationInput) (VerificationResponse, error)
 	VerifyForAttendance(ctx context.Context, claims auth.Claims, input AttendanceVerificationInput) (AttendanceVerificationResponse, error)
+	Reset(ctx context.Context, claims auth.Claims) error
 }
 
 type Handler struct {
@@ -131,6 +132,26 @@ func (h Handler) VerifyForAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, response{Status: "ok", Data: result})
+}
+
+// Enrollment is kept as an internal reset primitive for existing service tests.
+// Production routing does not register /api/v1/face/enrollment; employee-facing
+// reset is intentionally disabled and enrollment reset is exposed only through
+// the ADMIN endpoint handled by AdminHandler.
+func (h Handler) Enrollment(w http.ResponseWriter, r *http.Request) {
+	if !allowMethod(w, r, http.MethodDelete) {
+		return
+	}
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "token tidak valid")
+		return
+	}
+	if err := h.service.Reset(r.Context(), claims); err != nil {
+		h.writeFaceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, response{Status: "ok", Message: "enrollment wajah berhasil direset", Data: StatusResponse{Enrolled: false, FaceStatus: FaceStatusNotEnrolled}})
 }
 
 func (h Handler) writeFaceError(w http.ResponseWriter, err error) {
