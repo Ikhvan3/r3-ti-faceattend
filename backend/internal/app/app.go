@@ -174,7 +174,6 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/face/enroll", userOnly(http.HandlerFunc(faceHandler.Enroll)))
 			mux.Handle("/api/v1/face/verify", userOnly(http.HandlerFunc(faceHandler.Verify)))
 			mux.Handle("/api/v1/face/verify-for-attendance", userOnly(http.HandlerFunc(faceHandler.VerifyForAttendance)))
-			mux.Handle("/api/v1/face/enrollment", userOnly(http.HandlerFunc(faceHandler.Enrollment)))
 		}
 	}
 
