@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"time"
 )
 
 func (r *PostgresRepository) ListEmployeeFaceEnrollments(ctx context.Context, userIDs []string) (map[string]EmployeeFaceEnrollment, error) {
@@ -27,28 +28,24 @@ func (r *PostgresRepository) ListEmployeeFaceEnrollments(ctx context.Context, us
 			status           string
 			embeddingModel   string
 			embeddingVersion string
-			enrolledAt       = newNullableTime()
+			enrolledAt       *time.Time
 		)
 		if err := rows.Scan(
 			&userID,
 			&status,
 			&embeddingModel,
 			&embeddingVersion,
-			enrolledAt,
+			&enrolledAt,
 		); err != nil {
 			return nil, sanitizePostgresError(err)
 		}
-		item := EmployeeFaceEnrollment{
+		result[userID] = EmployeeFaceEnrollment{
 			Enrolled:         status == "ENROLLED",
 			FaceStatus:       status,
 			EmbeddingModel:   embeddingModel,
 			EmbeddingVersion: embeddingVersion,
+			EnrolledAt:       enrolledAt,
 		}
-		if enrolledAt.Valid {
-			value := enrolledAt.Time
-			item.EnrolledAt = &value
-		}
-		result[userID] = item
 	}
 	if err := rows.Err(); err != nil {
 		return nil, sanitizePostgresError(err)
