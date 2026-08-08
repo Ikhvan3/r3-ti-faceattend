@@ -2,7 +2,9 @@ package face
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -10,7 +12,7 @@ import (
 )
 
 type AdminHTTPService interface {
-	AdminReset(ctx context.Context, claims auth.Claims, targetUserID string) error
+	AdminReset(ctx context.Context, claims auth.Claims, targetUserID string, reason ...string) error
 }
 
 type AdminHandler struct {
@@ -19,6 +21,10 @@ type AdminHandler struct {
 
 func NewAdminHandler(service AdminHTTPService) AdminHandler {
 	return AdminHandler{service: service}
+}
+
+type adminResetRequest struct {
+	Reason string `json:"reason"`
 }
 
 func (h AdminHandler) ResetEnrollment(w http.ResponseWriter, r *http.Request) {
@@ -38,10 +44,27 @@ func (h AdminHandler) ResetEnrollment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.AdminReset(r.Context(), claims, userID); err != nil {
+	var input adminResetRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "alasan reset enrollment wajib diisi")
+		return
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "request reset enrollment tidak valid")
+		return
+	}
+	input.Reason = strings.TrimSpace(input.Reason)
+	if len(input.Reason) < 5 || len(input.Reason) > 1000 {
+		writeError(w, http.StatusBadRequest, "alasan reset enrollment wajib diisi minimal 5 karakter")
+		return
+	}
+
+	if err := h.service.AdminReset(r.Context(), claims, userID, input.Reason); err != nil {
 		switch {
 		case errors.Is(err, ErrInvalidInput):
-			writeError(w, http.StatusBadRequest, "user pegawai tidak valid")
+			writeError(w, http.StatusBadRequest, "user atau alasan reset enrollment tidak valid")
 		case errors.Is(err, ErrForbidden):
 			writeError(w, http.StatusForbidden, "akses admin diperlukan")
 		case errors.Is(err, ErrProfileNotFound):
