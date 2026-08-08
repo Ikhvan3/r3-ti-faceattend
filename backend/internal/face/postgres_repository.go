@@ -65,6 +65,14 @@ func (r *PostgresRepository) CreateUnique(ctx context.Context, profile FaceProfi
 		return FaceProfile{}, ErrRepositoryFailure
 	}
 
+	// pgvector applies additional WHERE filters after an approximate index scan.
+	// Iterative scans let HNSW continue searching when model/version filtering
+	// removes candidates, improving recall without falling back to a full table
+	// scan. This setting is transaction-local.
+	if _, err := tx.Exec(ctx, `SET LOCAL hnsw.iterative_scan = strict_order`); err != nil {
+		return FaceProfile{}, ErrRepositoryFailure
+	}
+
 	vectorValue := faceVectorLiteral(profile.Embedding)
 	const candidateQuery = `
 		SELECT embedding
@@ -88,24 +96,28 @@ func (r *PostgresRepository) CreateUnique(ctx context.Context, profile FaceProfi
 	if err != nil {
 		return FaceProfile{}, sanitizePostgresError(err)
 	}
-	defer rows.Close()
 
 	for rows.Next() {
 		var existingEmbedding []float64
 		if err := rows.Scan(&existingEmbedding); err != nil {
+			rows.Close()
 			return FaceProfile{}, sanitizePostgresError(err)
 		}
 		similarity, err := CosineSimilarity(profile.Embedding, existingEmbedding)
 		if err != nil {
+			rows.Close()
 			return FaceProfile{}, ErrRepositoryFailure
 		}
 		if similarity >= duplicateThreshold {
+			rows.Close()
 			return FaceProfile{}, ErrDuplicateBiometric
 		}
 	}
 	if err := rows.Err(); err != nil {
+		rows.Close()
 		return FaceProfile{}, sanitizePostgresError(err)
 	}
+	rows.Close()
 
 	created, err := insertProfile(ctx, tx, profile)
 	if err != nil {
