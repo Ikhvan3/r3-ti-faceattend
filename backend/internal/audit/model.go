@@ -17,12 +17,12 @@ const (
 )
 
 type Event struct {
-	ActorUserID string
-	ActorEmail  string
-	ActorRole   string
-	Action      Action
-	EntityType  EntityType
-	EntityID    string
+	ActorUserID  string
+	ActorEmail   string
+	ActorRole    string
+	Action       Action
+	EntityType   EntityType
+	EntityID     string
 	TargetUserID string
 	TargetLabel  string
 	Reason       string
@@ -49,6 +49,7 @@ type Log struct {
 type ListFilter struct {
 	Action     Action
 	EntityType EntityType
+	EntityID   string
 	DateFrom   string
 	DateTo     string
 	Page       int
@@ -66,6 +67,7 @@ type List struct {
 type listQuery struct {
 	Action     Action
 	EntityType EntityType
+	EntityID   string
 	DateFrom   *time.Time
 	DateTo     *time.Time
 	Page       int
