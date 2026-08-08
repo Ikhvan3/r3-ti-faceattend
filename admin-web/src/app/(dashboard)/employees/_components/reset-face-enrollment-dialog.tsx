@@ -13,16 +13,27 @@ export function ResetFaceEnrollmentDialog({
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reason, setReason] = useState("");
   const [error, setError] = useState("");
 
   async function resetEnrollment() {
+    const normalizedReason = reason.trim();
+    if (normalizedReason.length < 5) {
+      setError("Alasan reset wajib diisi minimal 5 karakter.");
+      return;
+    }
+
     setError("");
     setIsSubmitting(true);
 
     try {
       const response = await fetch(
         `/api/admin/employees/${employeeID}/face-enrollment`,
-        { method: "DELETE" },
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: normalizedReason }),
+        },
       );
       const payload = (await response.json()) as unknown;
 
@@ -35,6 +46,7 @@ export function ResetFaceEnrollmentDialog({
 
       setIsSubmitting(false);
       setIsOpen(false);
+      setReason("");
       router.refresh();
     } catch {
       setError("Layanan reset enrollment belum tersedia. Coba lagi nanti.");
@@ -48,6 +60,7 @@ export function ResetFaceEnrollmentDialog({
         className="inline-flex h-9 items-center justify-center rounded-md border border-red-200 bg-white px-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-100"
         onClick={() => {
           setError("");
+          setReason("");
           setIsOpen(true);
         }}
         type="button"
@@ -60,7 +73,7 @@ export function ResetFaceEnrollmentDialog({
           <div
             aria-labelledby="reset-face-title"
             aria-modal="true"
-            className="w-full max-w-md rounded-md bg-white p-5 shadow-xl"
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
             role="dialog"
           >
             <h2
@@ -74,6 +87,22 @@ export function ResetFaceEnrollmentDialog({
               harus melakukan enrollment ulang dari aplikasi mobile sebelum dapat
               menggunakan verifikasi wajah untuk absensi.
             </p>
+
+            <label className="mt-4 block text-sm font-semibold text-slate-800">
+              Alasan reset
+              <textarea
+                className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                disabled={isSubmitting}
+                maxLength={1000}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Contoh: Enrollment perlu diulang karena perubahan data biometrik telah diverifikasi admin."
+                value={reason}
+              />
+            </label>
+            <p className="mt-2 text-xs text-slate-500">
+              Alasan ini akan disimpan permanen pada audit log.
+            </p>
+
             <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               Tindakan ini tidak menampilkan atau mengunduh template biometrik.
             </p>
@@ -95,7 +124,7 @@ export function ResetFaceEnrollmentDialog({
               </button>
               <button
                 className="h-10 rounded-md bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                disabled={isSubmitting}
+                disabled={isSubmitting || reason.trim().length < 5}
                 onClick={resetEnrollment}
                 type="button"
               >
