@@ -42,6 +42,7 @@ func (h Handler) Collection(w http.ResponseWriter, r *http.Request) {
 	result, err := h.service.List(r.Context(), ListFilter{
 		Action:     Action(r.URL.Query().Get("action")),
 		EntityType: EntityType(r.URL.Query().Get("entity_type")),
+		EntityID:   r.URL.Query().Get("entity_id"),
 		DateFrom:   r.URL.Query().Get("date_from"),
 		DateTo:     r.URL.Query().Get("date_to"),
 		Page:       page,
