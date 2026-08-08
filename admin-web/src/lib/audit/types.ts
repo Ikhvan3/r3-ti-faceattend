@@ -31,6 +31,7 @@ export type AuditLogListResponse = {
 export type AuditLogQuery = {
   action?: AuditAction;
   entity_type?: AuditEntityType;
+  entity_id?: string;
   date_from?: string;
   date_to?: string;
   page?: number;
