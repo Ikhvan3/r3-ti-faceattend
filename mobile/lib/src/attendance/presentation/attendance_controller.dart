@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
@@ -130,6 +131,13 @@ class AttendanceController extends ChangeNotifier {
 
     try {
       final location = await _currentLocationPayload();
+
+      // Fast UX pre-check: do not open the camera when the current GPS point is
+      // already outside the employee's assigned office radius. This is only an
+      // early rejection. The backend still performs the authoritative geofence
+      // validation again when check-in/check-out is submitted.
+      await _ensureInsideAssignedGeofence(location);
+
       _currentStep = AttendanceActionStep.face;
       notifyListeners();
       final verificationGrant = await loadGrant();
@@ -154,6 +162,56 @@ class AttendanceController extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> _ensureInsideAssignedGeofence(
+    AttendanceLocationPayload current,
+  ) async {
+    final requirement = await _repository.loadLocationRequirement();
+    final office = requirement.officeLocation;
+    if (!office.isActive) {
+      throw const AttendanceFailure(
+        AttendanceFailureKind.locationAssignmentMissing,
+        'Lokasi kerja belum ditugaskan. Hubungi administrator.',
+      );
+    }
+
+    final distance = _distanceMeters(
+      current.latitude,
+      current.longitude,
+      office.latitude,
+      office.longitude,
+    );
+    if (distance > office.radiusMeters) {
+      throw const AttendanceFailure(
+        AttendanceFailureKind.outsideGeofence,
+        'Anda berada di luar area absensi.',
+      );
+    }
+  }
+
+  double _distanceMeters(
+    double latitudeA,
+    double longitudeA,
+    double latitudeB,
+    double longitudeB,
+  ) {
+    const earthRadiusMeters = 6371000.0;
+    final lat1 = _degreesToRadians(latitudeA);
+    final lat2 = _degreesToRadians(latitudeB);
+    final deltaLat = _degreesToRadians(latitudeB - latitudeA);
+    final deltaLon = _degreesToRadians(longitudeB - longitudeA);
+
+    final haversine =
+        math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
+        math.cos(lat1) *
+            math.cos(lat2) *
+            math.sin(deltaLon / 2) *
+            math.sin(deltaLon / 2);
+    final angularDistance = 2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
+    return earthRadiusMeters * angularDistance;
+  }
+
+  double _degreesToRadians(double degrees) => degrees * math.pi / 180;
 
   bool _shouldRefreshAfter(AttendanceFailure error) {
     switch (error.kind) {
