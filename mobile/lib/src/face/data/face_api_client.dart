@@ -24,7 +24,6 @@ abstract class FaceApi {
     required String embeddingModel,
     required String embeddingVersion,
   });
-  Future<void> resetEnrollment();
 }
 
 class HttpFaceApiClient implements FaceApi {
@@ -55,11 +54,6 @@ class HttpFaceApiClient implements FaceApi {
       },
     );
     return _parseStatus(response);
-  }
-
-  @override
-  Future<void> resetEnrollment() async {
-    await _send(method: 'DELETE', path: '/face/enrollment');
   }
 
   @override
@@ -193,7 +187,7 @@ class HttpFaceApiClient implements FaceApi {
       }
       return const FaceFailure(
         FaceFailureKind.duplicateEnrollment,
-        'Wajah sudah terdaftar. Atur ulang sebelum mendaftar ulang.',
+        'Wajah sudah terdaftar. Hubungi administrator jika enrollment perlu diubah.',
       );
     }
     if (statusCode == HttpStatus.badRequest) {
