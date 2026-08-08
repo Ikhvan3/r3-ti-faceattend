@@ -18,7 +18,8 @@ export async function resetEmployeeFaceEnrollmentWithSession(
 ): Promise<void> {
   let accessToken = await readAccessToken();
   if (!accessToken) {
-    accessToken = await refreshAdminAccessToken();
+    const refreshedAccessToken = await refreshAdminAccessToken();
+    accessToken = refreshedAccessToken ?? undefined;
   }
   if (!accessToken) {
     throw new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
