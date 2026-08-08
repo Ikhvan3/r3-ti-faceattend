@@ -8,7 +8,7 @@ export function EmployeeTable({ employees }: { employees: EmployeeListItem[] }) 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
       <div className="overflow-x-auto">
-        <table className="min-w-[760px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[900px] w-full border-collapse text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
             <tr>
               <th className="px-4 py-3">Nomor Pegawai</th>
@@ -16,6 +16,7 @@ export function EmployeeTable({ employees }: { employees: EmployeeListItem[] }) 
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Jabatan</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Wajah</th>
               <th className="px-4 py-3">Aksi</th>
             </tr>
           </thead>
@@ -34,6 +35,9 @@ export function EmployeeTable({ employees }: { employees: EmployeeListItem[] }) 
                   <StatusBadge status={employee.account_status} />
                 </td>
                 <td className="px-4 py-3">
+                  <FaceEnrollmentBadge enrolled={employee.face_enrollment?.enrolled === true} />
+                </td>
+                <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
                     <ActionLink href={`/employees/${employee.id}`}>
                       Detail
@@ -50,6 +54,20 @@ export function EmployeeTable({ employees }: { employees: EmployeeListItem[] }) 
         </table>
       </div>
     </div>
+  );
+}
+
+function FaceEnrollmentBadge({ enrolled }: { enrolled: boolean }) {
+  return (
+    <span
+      className={
+        enrolled
+          ? "inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+          : "inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"
+      }
+    >
+      {enrolled ? "Terdaftar" : "Belum terdaftar"}
+    </span>
   );
 }
 
