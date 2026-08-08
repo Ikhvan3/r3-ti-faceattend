@@ -138,6 +138,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 				cfg.FaceDuplicate.SearchTopK,
 			)
 			faceHandler := face.NewHandler(faceService)
+			faceAdminHandler := face.NewAdminHandler(faceService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
 			}
@@ -152,6 +153,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/admin/ping", adminOnly(http.HandlerFunc(auth.AdminPing)))
 			mux.Handle("/api/v1/admin/employees", adminOnly(http.HandlerFunc(employeeHandler.Collection)))
 			mux.Handle("/api/v1/admin/employees/", adminOnly(http.HandlerFunc(employeeHandler.Resource)))
+			mux.Handle("/api/v1/admin/face-enrollments/", adminOnly(http.HandlerFunc(faceAdminHandler.ResetEnrollment)))
 			mux.Handle("/api/v1/admin/work-schedules", adminOnly(http.HandlerFunc(adminScheduleHandler.WorkScheduleCollection)))
 			mux.Handle("/api/v1/admin/work-schedules/", adminOnly(http.HandlerFunc(adminScheduleHandler.WorkScheduleResource)))
 			mux.Handle("/api/v1/admin/schedule-assignments", adminOnly(http.HandlerFunc(adminScheduleHandler.AssignmentCollection)))
