@@ -4,6 +4,40 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Assert-BackendHealthy {
+    param([int]$Port)
+
+    $healthUrl = "http://127.0.0.1:$Port/health"
+    try {
+        $response = Invoke-WebRequest `
+            -UseBasicParsing `
+            -Uri $healthUrl `
+            -Method Get `
+            -TimeoutSec 5
+    }
+    catch {
+        throw "Backend belum sehat di $healthUrl. Pastikan 'go run ./cmd/api' aktif dan database PostgreSQL terhubung. Detail: $($_.Exception.Message)"
+    }
+
+    if ($response.StatusCode -ne 200) {
+        throw "Backend health mengembalikan HTTP $($response.StatusCode). Pastikan database PostgreSQL terhubung."
+    }
+
+    try {
+        $payload = $response.Content | ConvertFrom-Json
+        $databaseStatus = $payload.checks.database.status
+    }
+    catch {
+        throw "Respons backend health tidak dapat dibaca dari $healthUrl."
+    }
+
+    if ($payload.status -ne "ok" -or $databaseStatus -ne "ok") {
+        throw "Backend berjalan tetapi belum sehat. Status API: $($payload.status); database: $databaseStatus."
+    }
+
+    Write-Host "Backend sehat: $healthUrl (database connected)"
+}
+
 function Get-AdbPath {
     $candidates = @()
     if ($env:ANDROID_HOME) {
@@ -70,6 +104,8 @@ function Get-PhysicalDeviceId {
 
     return [string]$devices[0]
 }
+
+Assert-BackendHealthy -Port $BackendPort
 
 $adb = Get-AdbPath
 $deviceId = Get-PhysicalDeviceId -AdbPath $adb
