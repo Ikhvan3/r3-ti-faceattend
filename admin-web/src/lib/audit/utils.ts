@@ -16,6 +16,7 @@ export function buildAuditQueryParams(query: AuditLogQuery): string {
   const params = new URLSearchParams();
   if (query.action) params.set("action", query.action);
   if (query.entity_type) params.set("entity_type", query.entity_type);
+  if (query.entity_id) params.set("entity_id", query.entity_id);
   if (query.date_from) params.set("date_from", query.date_from);
   if (query.date_to) params.set("date_to", query.date_to);
   if (query.page) params.set("page", String(query.page));
