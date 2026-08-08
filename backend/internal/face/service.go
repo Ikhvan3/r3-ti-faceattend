@@ -22,28 +22,42 @@ type Repository interface {
 	CreateVerificationGrant(ctx context.Context, grant VerificationGrant) error
 }
 
+type UniqueEnrollmentRepository interface {
+	CreateUnique(ctx context.Context, profile FaceProfile, duplicateThreshold float64, searchTopK int) (FaceProfile, error)
+}
+
 type UserRepository interface {
 	FindByID(ctx context.Context, id string) (user.User, error)
 }
 
 type Service struct {
-	faces                 Repository
-	users                 UserRepository
-	models                ModelRegistry
-	verificationThreshold float64
-	attendanceGrantTTL    time.Duration
-	now                   func() time.Time
+	faces                        Repository
+	users                        UserRepository
+	models                       ModelRegistry
+	verificationThreshold        float64
+	duplicateEnrollmentThreshold float64
+	duplicateSearchTopK          int
+	attendanceGrantTTL           time.Duration
+	now                          func() time.Time
 }
 
 func NewService(faces Repository, users UserRepository, models ModelRegistry, verificationThreshold float64, attendanceGrantTTL time.Duration) Service {
 	return Service{
-		faces:                 faces,
-		users:                 users,
-		models:                models,
-		verificationThreshold: verificationThreshold,
-		attendanceGrantTTL:    attendanceGrantTTL,
-		now:                   time.Now,
+		faces:                        faces,
+		users:                        users,
+		models:                       models,
+		verificationThreshold:        verificationThreshold,
+		duplicateEnrollmentThreshold: math.NaN(),
+		duplicateSearchTopK:          20,
+		attendanceGrantTTL:           attendanceGrantTTL,
+		now:                          time.Now,
 	}
+}
+
+func (s Service) WithDuplicateProtection(threshold float64, searchTopK int) Service {
+	s.duplicateEnrollmentThreshold = threshold
+	s.duplicateSearchTopK = searchTopK
+	return s
 }
 
 func (s Service) Status(ctx context.Context, claims auth.Claims) (StatusResponse, error) {
@@ -84,7 +98,7 @@ func (s Service) Enroll(ctx context.Context, claims auth.Claims, input Enrollmen
 	}
 
 	enrolledAt := s.now().UTC()
-	profile, err := s.faces.Create(ctx, FaceProfile{
+	candidate := FaceProfile{
 		ID:               newUUID(),
 		UserID:           userID,
 		Embedding:        append([]float64(nil), input.Embedding...),
@@ -92,15 +106,39 @@ func (s Service) Enroll(ctx context.Context, claims auth.Claims, input Enrollmen
 		EmbeddingVersion: strings.TrimSpace(input.EmbeddingVersion),
 		Status:           FaceStatusEnrolled,
 		EnrolledAt:       &enrolledAt,
-	})
-	if err != nil {
-		if err == ErrAlreadyEnrolled {
-			return StatusResponse{}, ErrAlreadyEnrolled
+	}
+
+	var profile FaceProfile
+	if duplicateProtectionEnabled(s.duplicateEnrollmentThreshold) {
+		uniqueRepo, ok := s.faces.(UniqueEnrollmentRepository)
+		if !ok {
+			return StatusResponse{}, ErrRepositoryFailure
 		}
-		return StatusResponse{}, ErrRepositoryFailure
+		profile, err = uniqueRepo.CreateUnique(
+			ctx,
+			candidate,
+			s.duplicateEnrollmentThreshold,
+			s.duplicateSearchTopK,
+		)
+	} else {
+		profile, err = s.faces.Create(ctx, candidate)
+	}
+	if err != nil {
+		switch err {
+		case ErrAlreadyEnrolled:
+			return StatusResponse{}, ErrAlreadyEnrolled
+		case ErrDuplicateBiometric:
+			return StatusResponse{}, ErrDuplicateBiometric
+		default:
+			return StatusResponse{}, ErrRepositoryFailure
+		}
 	}
 
 	return statusResponse(profile), nil
+}
+
+func duplicateProtectionEnabled(threshold float64) bool {
+	return !math.IsNaN(threshold) && !math.IsInf(threshold, 0) && threshold >= -1 && threshold <= 1
 }
 
 func (s Service) Verify(ctx context.Context, claims auth.Claims, input VerificationInput) (VerificationResponse, error) {
