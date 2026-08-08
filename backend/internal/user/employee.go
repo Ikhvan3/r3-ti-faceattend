@@ -2,17 +2,26 @@ package user
 
 import "time"
 
+type EmployeeFaceEnrollment struct {
+	Enrolled         bool       `json:"enrolled"`
+	FaceStatus       string     `json:"face_status"`
+	EmbeddingModel   string     `json:"embedding_model,omitempty"`
+	EmbeddingVersion string     `json:"embedding_version,omitempty"`
+	EnrolledAt       *time.Time `json:"enrolled_at,omitempty"`
+}
+
 type EmployeeProfile struct {
-	ID             string        `json:"id"`
-	EmployeeNumber string        `json:"employee_number"`
-	Name           string        `json:"name"`
-	Email          string        `json:"email"`
-	Phone          *string       `json:"phone"`
-	Position       *string       `json:"position"`
-	Role           Role          `json:"role"`
-	AccountStatus  AccountStatus `json:"account_status"`
-	CreatedAt      time.Time     `json:"created_at"`
-	UpdatedAt      time.Time     `json:"updated_at"`
+	ID             string                  `json:"id"`
+	EmployeeNumber string                  `json:"employee_number"`
+	Name           string                  `json:"name"`
+	Email          string                  `json:"email"`
+	Phone          *string                 `json:"phone"`
+	Position       *string                 `json:"position"`
+	Role           Role                    `json:"role"`
+	AccountStatus  AccountStatus           `json:"account_status"`
+	FaceEnrollment *EmployeeFaceEnrollment `json:"face_enrollment,omitempty"`
+	CreatedAt      time.Time               `json:"created_at"`
+	UpdatedAt      time.Time               `json:"updated_at"`
 }
 
 type EmployeeListFilter struct {
