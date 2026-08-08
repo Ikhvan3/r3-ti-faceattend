@@ -227,28 +227,28 @@ type adminAttendanceScanner interface {
 
 func scanAdminAttendanceListRow(scanner adminAttendanceScanner) (adminAttendanceRow, error) {
 	var (
-		position      pgtype.Text
-		attendanceID  pgtype.Text
-		checkInAt     pgtype.Timestamptz
-		checkOutAt    pgtype.Timestamptz
-		employeeID    string
-		employeeNo    string
-		employeeName  string
-		employeeEmail string
-		scheduleID    string
-		scheduleName  string
-		startTime     string
-		endTime       string
-		graceMinutes  int
-		scheduleActive bool
+		position        pgtype.Text
+		attendanceID    pgtype.Text
+		checkInAt       pgtype.Timestamptz
+		checkOutAt      pgtype.Timestamptz
+		employeeID      string
+		employeeNo      string
+		employeeName    string
+		employeeEmail   string
+		scheduleID      string
+		scheduleName    string
+		startTime       string
+		endTime         string
+		graceMinutes    int
+		scheduleActive  bool
 		scheduleCreated time.Time
 		scheduleUpdated time.Time
-		state         string
-		isLate        bool
-		officeID      string
-		officeName    string
-		officeRadius  int
-		businessDate  time.Time
+		state           string
+		isLate          bool
+		officeID        string
+		officeName      string
+		officeRadius    int
+		businessDate    time.Time
 	)
 
 	if err := scanner.Scan(
@@ -296,21 +296,21 @@ func scanAdminAttendanceListRow(scanner adminAttendanceScanner) (adminAttendance
 
 func scanAdminAttendanceDetailRow(scanner adminAttendanceScanner) (adminAttendanceRow, error) {
 	var (
-		id, employeeID, employeeNo, employeeName, employeeEmail string
-		position pgtype.Text
-		scheduleID, scheduleName, startTime, endTime string
-		graceMinutes int
-		scheduleActive bool
-		scheduleCreated, scheduleUpdated time.Time
-		businessDate, checkInAt time.Time
-		checkOutAt pgtype.Timestamptz
-		state string
-		isLate bool
-		checkInOfficeID, checkInOfficeName string
-		checkInRadius int
-		checkInLat, checkInLng, checkInAccuracy, checkInDistance float64
-		checkOutOfficeID, checkOutOfficeName string
-		checkOutRadius int
+		id, employeeID, employeeNo, employeeName, employeeEmail      string
+		position                                                     pgtype.Text
+		scheduleID, scheduleName, startTime, endTime                 string
+		graceMinutes                                                 int
+		scheduleActive                                               bool
+		scheduleCreated, scheduleUpdated                             time.Time
+		businessDate, checkInAt                                      time.Time
+		checkOutAt                                                   pgtype.Timestamptz
+		state                                                        string
+		isLate                                                       bool
+		checkInOfficeID, checkInOfficeName                           string
+		checkInRadius                                                int
+		checkInLat, checkInLng, checkInAccuracy, checkInDistance     float64
+		checkOutOfficeID, checkOutOfficeName                         string
+		checkOutRadius                                               int
 		checkOutLat, checkOutLng, checkOutAccuracy, checkOutDistance float64
 	)
 	if err := scanner.Scan(
@@ -327,13 +327,13 @@ func scanAdminAttendanceDetailRow(scanner adminAttendanceScanner) (adminAttendan
 	}
 
 	row := adminAttendanceRow{
-		ID: &id,
-		AttendanceDate: businessDate,
-		Employee: AdminAttendanceEmployee{ID: employeeID, EmployeeNumber: employeeNo, Name: employeeName, Email: employeeEmail},
-		Schedule: WorkSchedule{ID: scheduleID, Name: scheduleName, StartTime: startTime, EndTime: endTime, GraceMinutes: graceMinutes, IsActive: scheduleActive, CreatedAt: scheduleCreated, UpdatedAt: scheduleUpdated},
-		CheckInAt: &checkInAt,
+		ID:              &id,
+		AttendanceDate:  businessDate,
+		Employee:        AdminAttendanceEmployee{ID: employeeID, EmployeeNumber: employeeNo, Name: employeeName, Email: employeeEmail},
+		Schedule:        WorkSchedule{ID: scheduleID, Name: scheduleName, StartTime: startTime, EndTime: endTime, GraceMinutes: graceMinutes, IsActive: scheduleActive, CreatedAt: scheduleCreated, UpdatedAt: scheduleUpdated},
+		CheckInAt:       &checkInAt,
 		AttendanceState: AdminAttendanceState(state),
-		IsLate: isLate,
+		IsLate:          isLate,
 	}
 	if position.Valid {
 		row.Employee.Position = &position.String

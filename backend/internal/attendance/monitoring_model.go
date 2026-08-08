@@ -45,15 +45,15 @@ type AdminAttendanceLocationEvidence struct {
 }
 
 type AdminAttendanceListItem struct {
-	ID               *string                        `json:"id"`
-	AttendanceDate   string                         `json:"attendance_date"`
-	Employee         AdminAttendanceEmployee        `json:"employee"`
-	Schedule         WorkSchedule                   `json:"schedule"`
-	CheckInAt        *time.Time                     `json:"check_in_at"`
-	CheckOutAt       *time.Time                     `json:"check_out_at"`
-	AttendanceState  AdminAttendanceState           `json:"attendance_state"`
-	IsLate           bool                           `json:"is_late"`
-	OfficeLocation   *AdminAttendanceOfficeLocation `json:"office_location,omitempty"`
+	ID              *string                        `json:"id"`
+	AttendanceDate  string                         `json:"attendance_date"`
+	Employee        AdminAttendanceEmployee        `json:"employee"`
+	Schedule        WorkSchedule                   `json:"schedule"`
+	CheckInAt       *time.Time                     `json:"check_in_at"`
+	CheckOutAt      *time.Time                     `json:"check_out_at"`
+	AttendanceState AdminAttendanceState           `json:"attendance_state"`
+	IsLate          bool                           `json:"is_late"`
+	OfficeLocation  *AdminAttendanceOfficeLocation `json:"office_location,omitempty"`
 }
 
 type AdminAttendanceDetail struct {
