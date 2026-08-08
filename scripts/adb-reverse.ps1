@@ -92,4 +92,4 @@ if ($reverseText -notmatch "tcp:$BackendPort\s+tcp:$BackendPort") {
 }
 
 $reverseList | ForEach-Object { Write-Host $_ }
-Write-Host "ADB reverse aktif untuk $deviceId: http://127.0.0.1:$BackendPort -> komputer lokal:$BackendPort"
+Write-Host "ADB reverse aktif untuk ${deviceId}: http://127.0.0.1:$BackendPort -> komputer lokal:$BackendPort"
