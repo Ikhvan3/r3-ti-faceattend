@@ -207,7 +207,8 @@ class AttendanceController extends ChangeNotifier {
             math.cos(lat2) *
             math.sin(deltaLon / 2) *
             math.sin(deltaLon / 2);
-    final angularDistance = 2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
+    final angularDistance =
+        2 * math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine));
     return earthRadiusMeters * angularDistance;
   }
 

@@ -88,13 +88,15 @@ class SessionRecoveryPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
-                    onPressed: () => context.read<AuthController>().initialize(),
+                    onPressed: () =>
+                        context.read<AuthController>().initialize(),
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Coba lagi'),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed: () => context.read<AuthController>().clearError(),
+                    onPressed: () =>
+                        context.read<AuthController>().clearError(),
                     child: const Text('Masuk dengan akun lain'),
                   ),
                 ],

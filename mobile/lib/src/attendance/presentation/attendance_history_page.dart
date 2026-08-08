@@ -149,12 +149,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
       children: [
         Expanded(
           child: ListView.separated(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              widget.embedded ? 8 : 16,
-              16,
-              16,
-            ),
+            padding: EdgeInsets.fromLTRB(16, widget.embedded ? 8 : 16, 16, 16),
             itemBuilder: (context, index) {
               return _HistoryTile(record: history.items[index]);
             },

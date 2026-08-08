@@ -110,9 +110,9 @@ class FaceStatusCard extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Perubahan atau reset enrollment wajah hanya dapat dilakukan oleh administrator.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade700,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade700),
               ),
             ],
           ],
