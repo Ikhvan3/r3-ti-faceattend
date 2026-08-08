@@ -7,9 +7,14 @@ import '../domain/attendance_models.dart';
 import 'attendance_formatters.dart';
 
 class AttendanceHistoryPage extends StatefulWidget {
-  const AttendanceHistoryPage({this.embedded = false, super.key});
+  const AttendanceHistoryPage({
+    this.embedded = false,
+    this.refreshVersion = 0,
+    super.key,
+  });
 
   final bool embedded;
+  final int refreshVersion;
 
   @override
   State<AttendanceHistoryPage> createState() => _AttendanceHistoryPageState();
@@ -29,7 +34,23 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
+  @override
+  void didUpdateWidget(covariant AttendanceHistoryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshVersion != oldWidget.refreshVersion) {
+      _page = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _load();
+        }
+      });
+    }
+  }
+
   Future<void> _load() async {
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -64,14 +85,33 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage> {
     if (widget.embedded) {
       return CustomScrollView(
         slivers: [
-          const SliverAppBar(pinned: true, title: Text('Riwayat')),
+          SliverAppBar(
+            pinned: true,
+            title: const Text('Riwayat'),
+            actions: [
+              IconButton(
+                tooltip: 'Refresh',
+                onPressed: _isLoading ? null : _load,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
           SliverFillRemaining(child: _body()),
         ],
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Riwayat Absensi')),
+      appBar: AppBar(
+        title: const Text('Riwayat Absensi'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _isLoading ? null : _load,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
       body: _body(),
     );
   }
