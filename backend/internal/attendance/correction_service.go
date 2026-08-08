@@ -29,7 +29,7 @@ func NewAdminAttendanceCorrectionService(repo AdminAttendanceCorrectionRepositor
 
 func (s AdminAttendanceCorrectionService) Correct(ctx context.Context, claims auth.Claims, id string, input AdminAttendanceCorrectionInput) (AdminAttendanceDetail, error) {
 	if strings.TrimSpace(claims.Subject) == "" || claims.Role != user.RoleAdmin {
-		return AdminAttendanceDetail{}, ErrForbidden
+		return AdminAttendanceDetail{}, ErrAttendanceCorrectionForbidden
 	}
 
 	id = strings.TrimSpace(id)
