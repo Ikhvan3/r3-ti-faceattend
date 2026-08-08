@@ -119,7 +119,7 @@ Migration tidak menghapus atau memilih pemilik dari face profile yang sudah terl
 Untuk development test dengan dua akun yang saat ini memakai wajah sama:
 
 1. tentukan satu akun yang menjadi enrollment canonical;
-2. reset enrollment akun kedua;
+2. reset enrollment akun kedua melalui Admin;
 3. jangan reset akun canonical;
 4. pada akun kedua, coba enroll wajah canonical lagi;
 5. backend harus menolak dengan pesan bahwa wajah telah terdaftar pada akun lain.
@@ -146,6 +146,18 @@ Admin tidak menerima:
 - verification threshold;
 - verification grant/token.
 
+## Reset enrollment
+
+Reset enrollment dikendalikan oleh administrator.
+
+- USER tidak mempunyai endpoint production untuk menghapus enrollment sendiri.
+- Mobile tidak menyediakan tombol self-reset enrollment.
+- Admin melakukan reset dari detail pegawai melalui endpoint `DELETE /api/v1/admin/face-enrollments/{user_id}`.
+- Setelah reset, `GET /api/v1/face/status` untuk pegawai tersebut mengembalikan `NOT_ENROLLED` dan pegawai dapat melakukan enrollment ulang.
+- Duplicate biometric protection tetap diterapkan pada enrollment ulang.
+
+Kebijakan ini mencegah pegawai mengganti identitas biometrik akun secara sepihak. Audit untuk operasi reset Admin akan ditambahkan pada tahap audit trail berikutnya.
+
 ## Acceptance test
 
 Minimum manual test:
@@ -159,6 +171,11 @@ Akun A + wajah A -> attendance face verification berhasil
 Akun A + wajah B -> ditolak
 Akun B + wajah B -> berhasil
 Akun B + wajah A -> ditolak
+
+USER -> tidak memiliki tombol reset enrollment
+USER DELETE /face/enrollment -> route production tidak tersedia
+ADMIN -> reset enrollment berhasil
+USER setelah admin reset -> NOT_ENROLLED dan dapat enrollment ulang
 ```
 
 Setelah logout dari Akun A dan login Akun B yang belum memiliki face profile, `GET /face/status` harus mengembalikan `NOT_ENROLLED`; mobile juga harus membangun ulang state face controller untuk user baru.
