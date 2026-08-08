@@ -9,6 +9,7 @@ var (
 	ErrProfileNotFound      = errors.New("face profile not found")
 	ErrNotEnrolled          = errors.New("face profile not enrolled")
 	ErrAlreadyEnrolled      = errors.New("face profile already enrolled")
+	ErrDuplicateBiometric   = errors.New("face biometric already belongs to another user")
 	ErrUnsupportedModel     = errors.New("face embedding model unsupported")
 	ErrInvalidDimension     = errors.New("face embedding dimension invalid")
 	ErrVerificationMismatch = errors.New("face verification mismatch")
