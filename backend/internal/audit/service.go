@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const maxAuditRangeDays = 90
@@ -64,11 +66,18 @@ func (s Service) normalize(filter ListFilter) (listQuery, error) {
 
 	action := Action(strings.TrimSpace(string(filter.Action)))
 	entityType := EntityType(strings.TrimSpace(string(filter.EntityType)))
+	entityID := strings.TrimSpace(filter.EntityID)
 	if action != "" && action != ActionAttendanceCorrected && action != ActionFaceEnrollmentReset {
 		return listQuery{}, ErrInvalidFilter
 	}
 	if entityType != "" && entityType != EntityAttendanceRecord && entityType != EntityFaceProfile {
 		return listQuery{}, ErrInvalidFilter
+	}
+	if entityID != "" {
+		var parsed pgtype.UUID
+		if err := parsed.Scan(entityID); err != nil || !parsed.Valid {
+			return listQuery{}, ErrInvalidFilter
+		}
 	}
 
 	from, to, err := s.parseRange(filter.DateFrom, filter.DateTo)
@@ -78,6 +87,7 @@ func (s Service) normalize(filter ListFilter) (listQuery, error) {
 	return listQuery{
 		Action:     action,
 		EntityType: entityType,
+		EntityID:   entityID,
 		DateFrom:   from,
 		DateTo:     to,
 		Page:       page,
