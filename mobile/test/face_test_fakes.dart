@@ -31,7 +31,6 @@ class FakeFaceApi implements FaceApi {
     this.verifyError,
     this.verifyResult = const FaceVerificationResult(verified: true),
     FaceAttendanceGrant? attendanceGrant,
-    this.resetError,
   }) : attendanceGrant =
            attendanceGrant ??
            FaceAttendanceGrant(
@@ -45,11 +44,9 @@ class FakeFaceApi implements FaceApi {
   FaceFailure? verifyError;
   FaceVerificationResult verifyResult;
   FaceAttendanceGrant attendanceGrant;
-  FaceFailure? resetError;
   int enrollCount = 0;
   int verifyCount = 0;
   int verifyForAttendanceCount = 0;
-  int resetCount = 0;
   List<double>? lastEmbedding;
   String? lastEmbeddingModel;
   String? lastEmbeddingVersion;
@@ -114,16 +111,6 @@ class FakeFaceApi implements FaceApi {
       throw error;
     }
     return attendanceGrant;
-  }
-
-  @override
-  Future<void> resetEnrollment() async {
-    resetCount += 1;
-    final error = resetError;
-    if (error != null) {
-      throw error;
-    }
-    status = notEnrolledStatus;
   }
 }
 
