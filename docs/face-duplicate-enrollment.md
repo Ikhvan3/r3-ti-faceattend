@@ -47,9 +47,22 @@ Enrollment menggunakan transaction-scoped advisory lock. Enrollment relatif jara
 
 Lock ini tidak digunakan pada check-in/check-out.
 
-## Instalasi pgvector pada PostgreSQL Windows
+## Instalasi pgvector pada PostgreSQL 18 Windows
 
-Migration `000008` membutuhkan extension `vector` tersedia pada instalasi PostgreSQL. Untuk PostgreSQL Windows, ikuti petunjuk resmi pgvector yang sesuai dengan versi PostgreSQL yang dipakai. Setelah pgvector terpasang, extension dibuat per-database oleh migration melalui:
+Migration `000008` membutuhkan extension `vector` tersedia pada instalasi PostgreSQL.
+
+Petunjuk resmi pgvector saat dokumen ini diperbarui menggunakan PostgreSQL 18 dan pgvector `v0.8.6`. Pastikan Visual Studio C++ build tools terpasang, lalu buka **x64 Native Tools Command Prompt for VS** sebagai Administrator dan jalankan:
+
+```cmd
+set "PGROOT=C:\Program Files\PostgreSQL\18"
+cd %TEMP%
+git clone --branch v0.8.6 https://github.com/pgvector/pgvector.git
+cd pgvector
+nmake /F Makefile.win
+nmake /F Makefile.win install
+```
+
+Setelah library terpasang, migration membuat extension per-database melalui:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -68,6 +81,8 @@ psql -h localhost -p 5432 -U postgres -d r3_ti_faceattend -c "\d face_profiles"
 ```
 
 Harus terdapat `embedding_vector` dan index `face_profiles_embedding_hnsw_idx`.
+
+HNSW menggunakan cosine distance (`<=>`). Query duplicate enrollment mengaktifkan `hnsw.iterative_scan = strict_order` secara transaction-local agar filtering model/version tidak mengurangi candidate recall secara tidak perlu.
 
 ## Upgrade environment lokal yang sudah ada
 
