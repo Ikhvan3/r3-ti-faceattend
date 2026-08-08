@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../domain/face_status.dart';
 import '../data/face_detector_service.dart';
 import '../data/face_embedding_service.dart';
 import '../data/face_repository.dart';
+import '../domain/face_status.dart';
 import 'face_enrollment_controller.dart';
 import 'face_enrollment_page.dart';
 import 'face_liveness_controller.dart';
@@ -107,13 +107,12 @@ class FaceStatusCard extends StatelessWidget {
                 icon: const Icon(Icons.face_retouching_natural),
                 label: const Text('Uji Keaktifan Wajah'),
               ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: controller.isBusy
-                    ? null
-                    : () => _confirmReset(context),
-                icon: const Icon(Icons.restart_alt),
-                label: const Text('Atur Ulang Wajah'),
+              const SizedBox(height: 10),
+              Text(
+                'Perubahan atau reset enrollment wajah hanya dapat dilakukan oleh administrator.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey.shade700,
+                ),
               ),
             ],
           ],
@@ -172,35 +171,6 @@ class FaceStatusCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Future<void> _confirmReset(BuildContext context) async {
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (dialogContext) {
-            return AlertDialog(
-              title: const Text('Atur Ulang Wajah'),
-              content: const Text('Enrollment wajah akan dihapus dari server.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Batal'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text('Atur Ulang'),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
-    if (!context.mounted || !confirmed) {
-      return;
-    }
-    await context.read<FaceEnrollmentController>().resetEnrollment();
   }
 }
 
