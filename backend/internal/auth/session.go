@@ -59,7 +59,8 @@ func (r *PostgresSessionRepository) CreateSession(ctx context.Context, s Session
 
 func (r *PostgresSessionRepository) FindActiveByTokenHash(ctx context.Context, tokenHash string, now time.Time) (Session, error) {
 	const query = `
-		SELECT id, user_id, refresh_token_hash, expires_at, revoked_at, last_used_at, created_ip, user_agent, created_at
+		SELECT id, user_id, refresh_token_hash, expires_at, revoked_at, last_used_at,
+			host(created_ip), user_agent, created_at
 		FROM auth_sessions
 		WHERE refresh_token_hash = $1
 			AND revoked_at IS NULL
@@ -71,7 +72,8 @@ func (r *PostgresSessionRepository) FindActiveByTokenHash(ctx context.Context, t
 
 func (r *PostgresSessionRepository) FindByID(ctx context.Context, id string) (Session, error) {
 	const query = `
-		SELECT id, user_id, refresh_token_hash, expires_at, revoked_at, last_used_at, created_ip, user_agent, created_at
+		SELECT id, user_id, refresh_token_hash, expires_at, revoked_at, last_used_at,
+			host(created_ip), user_agent, created_at
 		FROM auth_sessions
 		WHERE id = $1
 	`
