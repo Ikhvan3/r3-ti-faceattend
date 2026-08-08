@@ -24,7 +24,6 @@ abstract class FaceApi {
     required String embeddingModel,
     required String embeddingVersion,
   });
-  Future<void> resetEnrollment();
 }
 
 class HttpFaceApiClient implements FaceApi {
@@ -55,11 +54,6 @@ class HttpFaceApiClient implements FaceApi {
       },
     );
     return _parseStatus(response);
-  }
-
-  @override
-  Future<void> resetEnrollment() async {
-    await _send(method: 'DELETE', path: '/face/enrollment');
   }
 
   @override
@@ -126,7 +120,7 @@ class HttpFaceApiClient implements FaceApi {
         body: body,
       );
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw _mapStatus(response.statusCode, path);
+        throw _mapStatus(response.statusCode, path, response.payload);
       }
       if (response.payload['status'] != 'ok') {
         throw const FaceFailure(
@@ -151,7 +145,15 @@ class HttpFaceApiClient implements FaceApi {
     }
   }
 
-  FaceFailure _mapStatus(int statusCode, String path) {
+  FaceFailure _mapStatus(
+    int statusCode,
+    String path,
+    Map<String, Object?> payload,
+  ) {
+    final message = payload['message'] is String
+        ? (payload['message'] as String).toLowerCase()
+        : '';
+
     if (statusCode == HttpStatus.unauthorized) {
       return const FaceFailure(
         FaceFailureKind.sessionExpired,
@@ -177,9 +179,15 @@ class HttpFaceApiClient implements FaceApi {
           'Wajah belum terdaftar.',
         );
       }
+      if (path == '/face/enroll' && message.contains('akun lain')) {
+        return const FaceFailure(
+          FaceFailureKind.duplicateEnrollment,
+          'Wajah ini telah terdaftar pada akun lain. Hubungi administrator jika data ini keliru.',
+        );
+      }
       return const FaceFailure(
         FaceFailureKind.duplicateEnrollment,
-        'Wajah sudah terdaftar. Atur ulang sebelum mendaftar ulang.',
+        'Wajah sudah terdaftar. Hubungi administrator jika enrollment perlu diubah.',
       );
     }
     if (statusCode == HttpStatus.badRequest) {

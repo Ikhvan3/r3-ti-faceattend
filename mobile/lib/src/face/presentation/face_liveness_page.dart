@@ -46,14 +46,13 @@ class _LivenessContentState extends State<_LivenessContent> {
   bool _disposed = false;
   DateTime? _lastFrameStartedAt;
   late final FaceDetectorService _detector;
-
-  FaceLivenessController get _controller =>
-      context.read<FaceLivenessController>();
+  late final FaceLivenessController _controller;
 
   @override
   void initState() {
     super.initState();
     _detector = context.read<FaceDetectorService>();
+    _controller = context.read<FaceLivenessController>();
     _controller.addListener(_handleControllerState);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -163,15 +162,21 @@ class _LivenessContentState extends State<_LivenessContent> {
       }
       _controller.processFaces(faces);
     } catch (_) {
-      _controller.failFromDetector(
-        'Kamera belum dapat membaca wajah. Silakan coba lagi.',
-      );
+      if (!_disposed) {
+        _controller.failFromDetector(
+          'Kamera belum dapat membaca wajah. Silakan coba lagi.',
+        );
+      }
     } finally {
       _isProcessingFrame = false;
     }
   }
 
   void _handleControllerState() {
+    if (_disposed) {
+      return;
+    }
+
     final state = _controller.state;
     final grant = state.verificationGrant;
     if (state.status == LivenessResultStatus.success && grant != null) {
@@ -192,6 +197,9 @@ class _LivenessContentState extends State<_LivenessContent> {
 
   Future<void> _verifyAfterLiveness() async {
     await _stopImageStream();
+    if (_disposed) {
+      return;
+    }
     await _controller.verifyAfterLiveness(widget.onCapture);
   }
 }

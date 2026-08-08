@@ -32,6 +32,10 @@ type EmployeeRepository interface {
 	UpdateEmployeeStatus(ctx context.Context, id string, status AccountStatus) (User, error)
 }
 
+type EmployeeFaceEnrollmentRepository interface {
+	ListEmployeeFaceEnrollments(ctx context.Context, userIDs []string) (map[string]EmployeeFaceEnrollment, error)
+}
+
 type EmployeeCreateInput struct {
 	EmployeeNumber  string
 	Name            string
@@ -74,9 +78,17 @@ func (s EmployeeService) List(ctx context.Context, filter EmployeeListFilter) (E
 		return EmployeeList{}, ErrEmployeeInternal
 	}
 
+	faceEnrollments, err := s.faceEnrollmentMap(ctx, users)
+	if err != nil {
+		return EmployeeList{}, err
+	}
+
 	items := make([]EmployeeProfile, 0, len(users))
 	for _, u := range users {
-		items = append(items, safeEmployee(u))
+		profile := safeEmployee(u)
+		face := employeeFaceEnrollmentOrDefault(faceEnrollments, u.ID)
+		profile.FaceEnrollment = &face
+		items = append(items, profile)
 	}
 
 	return EmployeeList{
@@ -114,7 +126,10 @@ func (s EmployeeService) Create(ctx context.Context, input EmployeeCreateInput) 
 		return EmployeeProfile{}, mapEmployeeRepositoryError(err)
 	}
 
-	return safeEmployee(created), nil
+	profile := safeEmployee(created)
+	face := employeeFaceEnrollmentOrDefault(nil, created.ID)
+	profile.FaceEnrollment = &face
+	return profile, nil
 }
 
 func (s EmployeeService) Detail(ctx context.Context, id string) (EmployeeProfile, error) {
@@ -127,7 +142,14 @@ func (s EmployeeService) Detail(ctx context.Context, id string) (EmployeeProfile
 		return EmployeeProfile{}, mapEmployeeRepositoryError(err)
 	}
 
-	return safeEmployee(u), nil
+	profile := safeEmployee(u)
+	faceEnrollments, err := s.faceEnrollmentMap(ctx, []User{u})
+	if err != nil {
+		return EmployeeProfile{}, err
+	}
+	face := employeeFaceEnrollmentOrDefault(faceEnrollments, u.ID)
+	profile.FaceEnrollment = &face
+	return profile, nil
 }
 
 func (s EmployeeService) Update(ctx context.Context, id string, input EmployeeUpdateInput) (EmployeeProfile, error) {
@@ -153,7 +175,7 @@ func (s EmployeeService) Update(ctx context.Context, id string, input EmployeeUp
 		return EmployeeProfile{}, mapEmployeeRepositoryError(err)
 	}
 
-	return safeEmployee(updated), nil
+	return s.Detail(ctx, updated.ID)
 }
 
 func (s EmployeeService) UpdateStatus(ctx context.Context, id string, status AccountStatus) (EmployeeProfile, error) {
@@ -169,7 +191,36 @@ func (s EmployeeService) UpdateStatus(ctx context.Context, id string, status Acc
 		return EmployeeProfile{}, mapEmployeeRepositoryError(err)
 	}
 
-	return safeEmployee(updated), nil
+	return s.Detail(ctx, updated.ID)
+}
+
+func (s EmployeeService) faceEnrollmentMap(ctx context.Context, users []User) (map[string]EmployeeFaceEnrollment, error) {
+	if len(users) == 0 {
+		return map[string]EmployeeFaceEnrollment{}, nil
+	}
+	faceRepo, ok := s.repo.(EmployeeFaceEnrollmentRepository)
+	if !ok {
+		return map[string]EmployeeFaceEnrollment{}, nil
+	}
+	ids := make([]string, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.ID)
+	}
+	result, err := faceRepo.ListEmployeeFaceEnrollments(ctx, ids)
+	if err != nil {
+		return nil, ErrEmployeeInternal
+	}
+	return result, nil
+}
+
+func employeeFaceEnrollmentOrDefault(items map[string]EmployeeFaceEnrollment, userID string) EmployeeFaceEnrollment {
+	if item, ok := items[userID]; ok {
+		return item
+	}
+	return EmployeeFaceEnrollment{
+		Enrolled:   false,
+		FaceStatus: "NOT_ENROLLED",
+	}
 }
 
 func normalizeEmployeeListFilter(filter EmployeeListFilter) (EmployeeListFilter, error) {

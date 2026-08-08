@@ -1,5 +1,15 @@
 import type { AccountStatus, UserRole } from "@/lib/auth/types";
 
+export type FaceEnrollmentStatus = "ENROLLED" | "NOT_ENROLLED";
+
+export type EmployeeFaceEnrollment = {
+  enrolled: boolean;
+  face_status: FaceEnrollmentStatus;
+  embedding_model?: string;
+  embedding_version?: string;
+  enrolled_at?: string;
+};
+
 export type Employee = {
   id: string;
   employee_number: string;
@@ -9,6 +19,7 @@ export type Employee = {
   position: string | null;
   role: UserRole;
   account_status: AccountStatus;
+  face_enrollment?: EmployeeFaceEnrollment;
   created_at: string;
   updated_at: string;
 };

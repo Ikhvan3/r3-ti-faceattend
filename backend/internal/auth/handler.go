@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -126,6 +127,9 @@ func (h Handler) writeAuthError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrInactiveAccount):
 		writeError(w, http.StatusForbidden, "akun tidak aktif")
 	default:
+		if errors.Is(err, ErrInternalAuth) {
+			log.Printf("auth internal error: %v", err)
+		}
 		writeError(w, http.StatusInternalServerError, "terjadi kesalahan internal")
 	}
 }

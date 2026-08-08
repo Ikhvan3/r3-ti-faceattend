@@ -49,9 +49,9 @@ class AttendanceCard extends StatelessWidget {
                     children: [
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Padding(
@@ -214,7 +214,11 @@ class _ProgressLine extends StatelessWidget {
             child: CircularProgressIndicator(strokeWidth: 2, color: color),
           )
         else
-          Icon(done ? Icons.check_circle_rounded : icon, size: 20, color: color),
+          Icon(
+            done ? Icons.check_circle_rounded : icon,
+            size: 20,
+            color: color,
+          ),
         const SizedBox(width: 10),
         Expanded(
           child: Text(

@@ -270,23 +270,6 @@ void main() {
     expect(controller.status, FaceControllerStatus.failure);
     expect(controller.errorMessage, 'duplicate');
   });
-
-  test('reset success and error', () async {
-    final api = FakeFaceApi(status: enrolledStatus);
-    final controller = newFaceController(api: api);
-
-    await controller.resetEnrollment();
-
-    expect(api.resetCount, 1);
-    expect(controller.faceStatus?.status, FaceEnrollmentStatus.notEnrolled);
-
-    api.resetError = const FaceFailure(
-      FaceFailureKind.apiUnavailable,
-      'offline',
-    );
-    await controller.resetEnrollment();
-    expect(controller.status, FaceControllerStatus.failure);
-  });
 }
 
 FaceEnrollmentController newFaceController({

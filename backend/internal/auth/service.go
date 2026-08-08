@@ -102,7 +102,7 @@ func (s Service) Refresh(ctx context.Context, refreshToken string) (TokenRespons
 		return TokenResponse{}, ErrInvalidToken
 	}
 	if err != nil {
-		return TokenResponse{}, ErrInternalAuth
+		return TokenResponse{}, fmt.Errorf("%w: find active session", ErrInternalAuth)
 	}
 
 	u, err := s.users.FindByID(ctx, session.UserID)
@@ -110,7 +110,7 @@ func (s Service) Refresh(ctx context.Context, refreshToken string) (TokenRespons
 		return TokenResponse{}, ErrInvalidToken
 	}
 	if err != nil {
-		return TokenResponse{}, ErrInternalAuth
+		return TokenResponse{}, fmt.Errorf("%w: find refresh user", ErrInternalAuth)
 	}
 	if u.AccountStatus != user.AccountStatusActive {
 		return TokenResponse{}, ErrInactiveAccount
@@ -118,11 +118,11 @@ func (s Service) Refresh(ctx context.Context, refreshToken string) (TokenRespons
 
 	newRefreshToken, err := s.refresh.Generate()
 	if err != nil {
-		return TokenResponse{}, ErrInternalAuth
+		return TokenResponse{}, fmt.Errorf("%w: generate refresh token", ErrInternalAuth)
 	}
 	newHash, err := HashRefreshToken(newRefreshToken)
 	if err != nil {
-		return TokenResponse{}, ErrInternalAuth
+		return TokenResponse{}, fmt.Errorf("%w: hash new refresh token", ErrInternalAuth)
 	}
 
 	expiresAt := now.Add(s.refreshTTL)
@@ -132,7 +132,7 @@ func (s Service) Refresh(ctx context.Context, refreshToken string) (TokenRespons
 
 	accessToken, accessExpiresAt, err := s.accessTokens.Issue(u.ID, session.ID, u.Email, u.Role)
 	if err != nil {
-		return TokenResponse{}, ErrInternalAuth
+		return TokenResponse{}, fmt.Errorf("%w: issue access token", ErrInternalAuth)
 	}
 
 	return TokenResponse{

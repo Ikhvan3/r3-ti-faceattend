@@ -125,10 +125,7 @@ void main() {
           401,
         );
       }
-      return http.Response(
-        jsonEncode(<String, Object?>{'status': 'ok'}),
-        200,
-      );
+      return http.Response(jsonEncode(<String, Object?>{'status': 'ok'}), 200);
     });
     final client = AuthenticatedApiClient(
       baseUrl: 'http://127.0.0.1:8080/api/v1',
@@ -153,45 +150,48 @@ void main() {
     expect(storage.refreshToken, 'new-refresh');
   });
 
-  test('401 memakai token terbaru jika refresh sudah dilakukan request lain', () async {
-    var requestCalls = 0;
-    final storage = FakeTokenStorage()
-      ..accessToken = 'old-access'
-      ..refreshToken = 'old-refresh';
-    final httpClient = MockClient((request) async {
-      requestCalls++;
-      if (request.headers['authorization'] == 'Bearer old-access') {
-        storage.accessToken = 'new-access';
+  test(
+    '401 memakai token terbaru jika refresh sudah dilakukan request lain',
+    () async {
+      var requestCalls = 0;
+      final storage = FakeTokenStorage()
+        ..accessToken = 'old-access'
+        ..refreshToken = 'old-refresh';
+      final httpClient = MockClient((request) async {
+        requestCalls++;
+        if (request.headers['authorization'] == 'Bearer old-access') {
+          storage.accessToken = 'new-access';
+          return http.Response(
+            jsonEncode(<String, Object?>{'status': 'error'}),
+            401,
+          );
+        }
+        expect(request.headers['authorization'], 'Bearer new-access');
         return http.Response(
-          jsonEncode(<String, Object?>{'status': 'error'}),
-          401,
+          jsonEncode(<String, Object?>{'status': 'ok'}),
+          200,
         );
-      }
-      expect(request.headers['authorization'], 'Bearer new-access');
-      return http.Response(
-        jsonEncode(<String, Object?>{'status': 'ok'}),
-        200,
+      });
+      final authApi = FakeAuthApi();
+      final client = AuthenticatedApiClient(
+        baseUrl: 'http://127.0.0.1:8080/api/v1',
+        client: httpClient,
+        tokenStorage: storage,
+        authApi: authApi,
       );
-    });
-    final authApi = FakeAuthApi();
-    final client = AuthenticatedApiClient(
-      baseUrl: 'http://127.0.0.1:8080/api/v1',
-      client: httpClient,
-      tokenStorage: storage,
-      authApi: authApi,
-    );
 
-    final response = await client.send(
-      method: 'GET',
-      path: '/attendance/today',
-    );
+      final response = await client.send(
+        method: 'GET',
+        path: '/attendance/today',
+      );
 
-    expect(response.statusCode, 200);
-    expect(requestCalls, 2);
-    expect(authApi.refreshCalls, 0);
-    expect(storage.accessToken, 'new-access');
-    expect(storage.refreshToken, 'old-refresh');
-  });
+      expect(response.statusCode, 200);
+      expect(requestCalls, 2);
+      expect(authApi.refreshCalls, 0);
+      expect(storage.accessToken, 'new-access');
+      expect(storage.refreshToken, 'old-refresh');
+    },
+  );
 
   test('mengirim JSON body saat tersedia', () async {
     late http.Request capturedRequest;

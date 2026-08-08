@@ -18,6 +18,7 @@ type Config struct {
 	Auth             AuthConfig
 	Geofence         GeofenceConfig
 	FaceVerification FaceVerificationConfig
+	FaceDuplicate    FaceDuplicateConfig
 	FaceAttendance   FaceAttendanceConfig
 }
 
@@ -44,6 +45,11 @@ type GeofenceConfig struct {
 
 type FaceVerificationConfig struct {
 	Threshold float64
+}
+
+type FaceDuplicateConfig struct {
+	Threshold  float64
+	SearchTopK int
 }
 
 type FaceAttendanceConfig struct {
@@ -75,6 +81,10 @@ func Load() Config {
 		},
 		FaceVerification: FaceVerificationConfig{
 			Threshold: envRequiredFloat("FACE_VERIFICATION_THRESHOLD"),
+		},
+		FaceDuplicate: FaceDuplicateConfig{
+			Threshold:  envRequiredFloat("FACE_DUPLICATE_ENROLLMENT_THRESHOLD"),
+			SearchTopK: envInt("FACE_DUPLICATE_SEARCH_TOP_K", 20),
 		},
 		FaceAttendance: FaceAttendanceConfig{
 			GrantTTL: time.Duration(envInt("FACE_ATTENDANCE_GRANT_TTL_SECONDS", 120)) * time.Second,
@@ -124,6 +134,16 @@ func (c FaceVerificationConfig) Validate() error {
 		return errors.New("FACE_VERIFICATION_THRESHOLD is required and must be finite between -1 and 1")
 	}
 
+	return nil
+}
+
+func (c FaceDuplicateConfig) Validate() error {
+	if math.IsNaN(c.Threshold) || math.IsInf(c.Threshold, 0) || c.Threshold < -1 || c.Threshold > 1 {
+		return errors.New("FACE_DUPLICATE_ENROLLMENT_THRESHOLD is required and must be finite between -1 and 1")
+	}
+	if c.SearchTopK < 1 || c.SearchTopK > 100 {
+		return errors.New("FACE_DUPLICATE_SEARCH_TOP_K must be between 1 and 100")
+	}
 	return nil
 }
 

@@ -10,19 +10,20 @@ class AppTheme {
     const surface = Color(0xFFFFFFFF);
     const surfaceContainer = Color(0xFFEAF0EC);
 
-    final scheme = ColorScheme.fromSeed(
-      seedColor: primary,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: primary,
-      secondary: secondary,
-      surface: surface,
-      surfaceContainer: surfaceContainer,
-      surfaceContainerHighest: const Color(0xFFDDE7E1),
-      onSurface: const Color(0xFF18211C),
-      onSurfaceVariant: const Color(0xFF59665D),
-      error: const Color(0xFFB3261E),
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: primary,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: primary,
+          secondary: secondary,
+          surface: surface,
+          surfaceContainer: surfaceContainer,
+          surfaceContainerHighest: const Color(0xFFDDE7E1),
+          onSurface: const Color(0xFF18211C),
+          onSurfaceVariant: const Color(0xFF59665D),
+          error: const Color(0xFFB3261E),
+        );
 
     return ThemeData(
       useMaterial3: true,
@@ -45,13 +46,13 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size(0, 48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(44),
+          minimumSize: const Size(0, 44),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),

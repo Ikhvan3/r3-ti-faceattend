@@ -24,7 +24,11 @@ class AuthGate extends StatelessWidget {
               });
               return const SplashPage();
             }
-            return HomePage(user: user);
+            // The key forces a fresh Home subtree (including attendance and
+            // face controllers) whenever the authenticated user changes. This
+            // prevents enrollment/status state from one account being reused
+            // by another account during rapid logout/login testing.
+            return HomePage(key: ValueKey<String>(user.id), user: user);
           case AuthControllerStatus.unauthenticated:
           case AuthControllerStatus.failure:
             if (controller.sessionRestoreFailed) {
@@ -84,13 +88,15 @@ class SessionRecoveryPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
-                    onPressed: () => context.read<AuthController>().initialize(),
+                    onPressed: () =>
+                        context.read<AuthController>().initialize(),
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Coba lagi'),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
-                    onPressed: () => context.read<AuthController>().clearError(),
+                    onPressed: () =>
+                        context.read<AuthController>().clearError(),
                     child: const Text('Masuk dengan akun lain'),
                   ),
                 ],

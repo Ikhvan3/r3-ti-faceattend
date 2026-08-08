@@ -41,6 +41,9 @@ func run() error {
 	if err := cfg.FaceVerification.Validate(); err != nil {
 		return err
 	}
+	if err := cfg.FaceDuplicate.Validate(); err != nil {
+		return err
+	}
 	if err := cfg.FaceAttendance.Validate(); err != nil {
 		return err
 	}
@@ -124,8 +127,18 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			locationService := officelocation.NewService(locationRepo, locationRepo, businessLocation)
 			locationHandler := officelocation.NewHandler(locationService)
 			faceRepo := face.NewPostgresRepository(pool)
-			faceService := face.NewService(faceRepo, userRepo, face.ProductionModelRegistry(), cfg.FaceVerification.Threshold, cfg.FaceAttendance.GrantTTL)
+			faceService := face.NewService(
+				faceRepo,
+				userRepo,
+				face.ProductionModelRegistry(),
+				cfg.FaceVerification.Threshold,
+				cfg.FaceAttendance.GrantTTL,
+			).WithDuplicateProtection(
+				cfg.FaceDuplicate.Threshold,
+				cfg.FaceDuplicate.SearchTopK,
+			)
 			faceHandler := face.NewHandler(faceService)
+			faceAdminHandler := face.NewAdminHandler(faceService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
 			}
@@ -140,6 +153,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/admin/ping", adminOnly(http.HandlerFunc(auth.AdminPing)))
 			mux.Handle("/api/v1/admin/employees", adminOnly(http.HandlerFunc(employeeHandler.Collection)))
 			mux.Handle("/api/v1/admin/employees/", adminOnly(http.HandlerFunc(employeeHandler.Resource)))
+			mux.Handle("/api/v1/admin/face-enrollments/", adminOnly(http.HandlerFunc(faceAdminHandler.ResetEnrollment)))
 			mux.Handle("/api/v1/admin/work-schedules", adminOnly(http.HandlerFunc(adminScheduleHandler.WorkScheduleCollection)))
 			mux.Handle("/api/v1/admin/work-schedules/", adminOnly(http.HandlerFunc(adminScheduleHandler.WorkScheduleResource)))
 			mux.Handle("/api/v1/admin/schedule-assignments", adminOnly(http.HandlerFunc(adminScheduleHandler.AssignmentCollection)))
@@ -160,7 +174,6 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.Handle("/api/v1/face/enroll", userOnly(http.HandlerFunc(faceHandler.Enroll)))
 			mux.Handle("/api/v1/face/verify", userOnly(http.HandlerFunc(faceHandler.Verify)))
 			mux.Handle("/api/v1/face/verify-for-attendance", userOnly(http.HandlerFunc(faceHandler.VerifyForAttendance)))
-			mux.Handle("/api/v1/face/enrollment", userOnly(http.HandlerFunc(faceHandler.Enrollment)))
 		}
 	}
 

@@ -134,6 +134,10 @@ func (h Handler) VerifyForAttendance(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response{Status: "ok", Data: result})
 }
 
+// Enrollment is kept as an internal reset primitive for existing service tests.
+// Production routing does not register /api/v1/face/enrollment; employee-facing
+// reset is intentionally disabled and enrollment reset is exposed only through
+// the ADMIN endpoint handled by AdminHandler.
 func (h Handler) Enrollment(w http.ResponseWriter, r *http.Request) {
 	if !allowMethod(w, r, http.MethodDelete) {
 		return
@@ -162,6 +166,8 @@ func (h Handler) writeFaceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "wajah tidak sesuai dengan data yang terdaftar")
 	case errors.Is(err, ErrProfileNotFound):
 		writeError(w, http.StatusNotFound, "enrollment wajah tidak ditemukan")
+	case errors.Is(err, ErrDuplicateBiometric):
+		writeError(w, http.StatusConflict, "wajah ini telah terdaftar pada akun lain")
 	case errors.Is(err, ErrAlreadyEnrolled):
 		writeError(w, http.StatusConflict, "wajah sudah terdaftar")
 	default:

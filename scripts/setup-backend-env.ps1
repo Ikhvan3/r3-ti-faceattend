@@ -10,7 +10,8 @@ $envPath = Join-Path $backendDir ".env"
 
 if ((Test-Path $envPath) -and -not $Force) {
     Write-Host "backend/.env sudah ada. Tidak ada perubahan yang dilakukan."
-    Write-Host "Jalankan dengan -Force hanya jika Anda memang ingin membuat ulang konfigurasi lokal."
+    Write-Host "Gunakan scripts/upgrade-face-duplicate-config.ps1 untuk menambah konfigurasi duplicate biometric tanpa membuat ulang secret."
+    Write-Host "Jalankan dengan -Force hanya jika Anda memang ingin membuat ulang seluruh konfigurasi lokal."
     exit 0
 }
 
@@ -32,6 +33,33 @@ function ConvertTo-DotEnvValue {
     return '"' + $escaped + '"'
 }
 
+function Read-Threshold {
+    param(
+        [string]$Prompt,
+        [string]$Name
+    )
+
+    $value = Read-Host $Prompt
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        throw "$Name wajib diisi dengan nilai yang sudah dievaluasi untuk model face project ini."
+    }
+
+    $parsed = 0.0
+    if (-not [double]::TryParse(
+        $value,
+        [Globalization.NumberStyles]::Float,
+        [Globalization.CultureInfo]::InvariantCulture,
+        [ref]$parsed
+    )) {
+        throw "$Name harus berupa angka desimal dengan titik."
+    }
+    if ($parsed -lt -1 -or $parsed -gt 1) {
+        throw "$Name harus berada di antara -1 dan 1."
+    }
+
+    return $value
+}
+
 Write-Host "Setup backend lokal R3 TI FaceAttend"
 Write-Host "Secret tidak akan dicetak ke terminal atau disimpan ke Git."
 Write-Host ""
@@ -51,23 +79,13 @@ if ([string]::IsNullOrWhiteSpace($dbUser)) { $dbUser = "postgres" }
 $dbPasswordSecure = Read-Host "DB password" -AsSecureString
 $dbPassword = ConvertFrom-SecureStringPlainText $dbPasswordSecure
 
-$faceThreshold = Read-Host "FACE_VERIFICATION_THRESHOLD (gunakan nilai yang sudah Anda uji sebelumnya)"
-if ([string]::IsNullOrWhiteSpace($faceThreshold)) {
-    throw "FACE_VERIFICATION_THRESHOLD wajib diisi dengan nilai yang sudah dikalibrasi untuk model face project ini."
-}
+$faceThreshold = Read-Threshold `
+    "FACE_VERIFICATION_THRESHOLD (1:1, gunakan nilai yang sudah Anda uji)" `
+    "FACE_VERIFICATION_THRESHOLD"
 
-$parsedThreshold = 0.0
-if (-not [double]::TryParse(
-    $faceThreshold,
-    [Globalization.NumberStyles]::Float,
-    [Globalization.CultureInfo]::InvariantCulture,
-    [ref]$parsedThreshold
-)) {
-    throw "FACE_VERIFICATION_THRESHOLD harus berupa angka desimal dengan titik, misalnya 0.60."
-}
-if ($parsedThreshold -lt -1 -or $parsedThreshold -gt 1) {
-    throw "FACE_VERIFICATION_THRESHOLD harus berada di antara -1 dan 1."
-}
+$duplicateThreshold = Read-Threshold `
+    "FACE_DUPLICATE_ENROLLMENT_THRESHOLD (1:N, nilai development; kalibrasi produksi terpisah)" `
+    "FACE_DUPLICATE_ENROLLMENT_THRESHOLD"
 
 $secretBytes = New-Object byte[] 48
 $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
@@ -98,6 +116,8 @@ AUTH_TOKEN_AUDIENCE=r3-ti-faceattend-client
 
 GEOFENCE_MAX_ACCURACY_METERS=50
 FACE_VERIFICATION_THRESHOLD=$faceThreshold
+FACE_DUPLICATE_ENROLLMENT_THRESHOLD=$duplicateThreshold
+FACE_DUPLICATE_SEARCH_TOP_K=20
 FACE_ATTENDANCE_GRANT_TTL_SECONDS=120
 
 # Optional local seed configuration.

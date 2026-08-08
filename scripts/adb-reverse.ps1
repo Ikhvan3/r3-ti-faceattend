@@ -4,6 +4,40 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Assert-BackendHealthy {
+    param([int]$Port)
+
+    $healthUrl = "http://127.0.0.1:$Port/health"
+    try {
+        $response = Invoke-WebRequest `
+            -UseBasicParsing `
+            -Uri $healthUrl `
+            -Method Get `
+            -TimeoutSec 5
+    }
+    catch {
+        throw "Backend belum sehat di $healthUrl. Pastikan 'go run ./cmd/api' aktif dan database PostgreSQL terhubung. Detail: $($_.Exception.Message)"
+    }
+
+    if ($response.StatusCode -ne 200) {
+        throw "Backend health mengembalikan HTTP $($response.StatusCode). Pastikan database PostgreSQL terhubung."
+    }
+
+    try {
+        $payload = $response.Content | ConvertFrom-Json
+        $databaseStatus = $payload.checks.database.status
+    }
+    catch {
+        throw "Respons backend health tidak dapat dibaca dari $healthUrl."
+    }
+
+    if ($payload.status -ne "ok" -or $databaseStatus -ne "ok") {
+        throw "Backend berjalan tetapi belum sehat. Status API: $($payload.status); database: $databaseStatus."
+    }
+
+    Write-Host "Backend sehat: $healthUrl (database connected)"
+}
+
 function Get-AdbPath {
     $candidates = @()
     if ($env:ANDROID_HOME) {
@@ -30,15 +64,36 @@ function Get-AdbPath {
     throw "adb tidak ditemukan. Pastikan Android SDK platform-tools sudah terpasang dan adb ada di PATH."
 }
 
+function Invoke-AdbChecked {
+    param(
+        [string]$AdbPath,
+        [string[]]$Arguments
+    )
+
+    $output = & $AdbPath @Arguments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $message = ($output | Out-String).Trim()
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = "exit code $LASTEXITCODE"
+        }
+        throw "adb gagal: $message"
+    }
+
+    return @($output)
+}
+
 function Get-PhysicalDeviceId {
     param([string]$AdbPath)
 
-    $devices = & $AdbPath devices |
-        Select-Object -Skip 1 |
-        ForEach-Object { $_.Trim() } |
-        Where-Object { $_ -match "\sdevice$" } |
-        ForEach-Object { ($_ -split "\s+")[0] } |
-        Where-Object { $_ -notmatch "^emulator-" }
+    $rawDevices = Invoke-AdbChecked -AdbPath $AdbPath -Arguments @("devices")
+    $devices = @(
+        $rawDevices |
+            Select-Object -Skip 1 |
+            ForEach-Object { $_.ToString().Trim() } |
+            Where-Object { $_ -match "\sdevice$" } |
+            ForEach-Object { ($_ -split "\s+")[0] } |
+            Where-Object { $_ -and $_ -notmatch "^emulator-" }
+    )
 
     if ($devices.Count -eq 0) {
         throw "Tidak ada perangkat Android fisik yang aktif. Sambungkan perangkat dan aktifkan USB debugging."
@@ -47,13 +102,30 @@ function Get-PhysicalDeviceId {
         throw "Lebih dari satu perangkat Android fisik terdeteksi. Sisakan satu perangkat aktif lalu jalankan ulang script."
     }
 
-    return $devices[0]
+    return [string]$devices[0]
 }
+
+Assert-BackendHealthy -Port $BackendPort
 
 $adb = Get-AdbPath
 $deviceId = Get-PhysicalDeviceId -AdbPath $adb
 
-& $adb -s $deviceId reverse "tcp:$BackendPort" "tcp:$BackendPort"
-& $adb -s $deviceId reverse --list
+Write-Host "Perangkat fisik terdeteksi: $deviceId"
 
-Write-Host "ADB reverse aktif untuk $deviceId: http://127.0.0.1:$BackendPort -> komputer lokal:$BackendPort"
+Invoke-AdbChecked -AdbPath $adb -Arguments @(
+    "-s", $deviceId,
+    "reverse", "tcp:$BackendPort", "tcp:$BackendPort"
+) | Out-Null
+
+$reverseList = Invoke-AdbChecked -AdbPath $adb -Arguments @(
+    "-s", $deviceId,
+    "reverse", "--list"
+)
+
+$reverseText = ($reverseList | Out-String)
+if ($reverseText -notmatch "tcp:$BackendPort\s+tcp:$BackendPort") {
+    throw "ADB reverse tcp:$BackendPort belum terpasang untuk perangkat $deviceId."
+}
+
+$reverseList | ForEach-Object { Write-Host $_ }
+Write-Host "ADB reverse aktif untuk ${deviceId}: http://127.0.0.1:$BackendPort -> komputer lokal:$BackendPort"
