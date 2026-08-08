@@ -24,7 +24,11 @@ class AuthGate extends StatelessWidget {
               });
               return const SplashPage();
             }
-            return HomePage(user: user);
+            // The key forces a fresh Home subtree (including attendance and
+            // face controllers) whenever the authenticated user changes. This
+            // prevents enrollment/status state from one account being reused
+            // by another account during rapid logout/login testing.
+            return HomePage(key: ValueKey<String>(user.id), user: user);
           case AuthControllerStatus.unauthenticated:
           case AuthControllerStatus.failure:
             if (controller.sessionRestoreFailed) {
