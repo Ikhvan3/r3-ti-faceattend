@@ -103,14 +103,22 @@ export default async function AttendanceDetailPage({
         secara manual, bukti lokasi check-out tetap kosong.
       </div>
 
-      <CorrectionHistory items={correctionHistory} />
+      <CorrectionHistory entityID={attendance.id} items={correctionHistory} />
       <EvidenceCard title="Lokasi Check-in" evidence={attendance.check_in_location} />
       <EvidenceCard title="Lokasi Check-out" evidence={attendance.check_out_location} />
     </section>
   );
 }
 
-function CorrectionHistory({ items }: { items: AuditLogItem[] }) {
+function CorrectionHistory({
+  entityID,
+  items,
+}: {
+  entityID: string;
+  items: AuditLogItem[];
+}) {
+  const auditHref = `/audit-logs?action=ATTENDANCE_CORRECTED&entity_type=ATTENDANCE_RECORD&entity_id=${encodeURIComponent(entityID)}`;
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -122,7 +130,7 @@ function CorrectionHistory({ items }: { items: AuditLogItem[] }) {
         </div>
         <Link
           className="text-sm font-semibold text-emerald-700 hover:text-emerald-800"
-          href="/audit-logs?action=ATTENDANCE_CORRECTED&entity_type=ATTENDANCE_RECORD"
+          href={auditHref}
         >
           Buka Audit Log
         </Link>
