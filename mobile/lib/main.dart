@@ -117,14 +117,6 @@ class _UnavailableFaceApi implements FaceApi {
   }
 
   @override
-  Future<void> resetEnrollment() {
-    throw const FaceFailure(
-      FaceFailureKind.apiUnavailable,
-      'Reset wajah belum tersedia.',
-    );
-  }
-
-  @override
   Future<FaceVerificationResult> verify({
     required List<double> embedding,
     required String embeddingModel,
