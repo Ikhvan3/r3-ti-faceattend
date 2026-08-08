@@ -24,10 +24,6 @@ class FaceRepository {
     );
   }
 
-  Future<void> resetEnrollment() {
-    return _api.resetEnrollment();
-  }
-
   Future<FaceVerificationResult> verify({
     required List<double> embedding,
     required String embeddingModel,
