@@ -17,7 +17,6 @@ enum FaceControllerStatus {
   loaded,
   sampling,
   submitting,
-  resetting,
   failure,
   success,
 }
@@ -60,8 +59,7 @@ class FaceEnrollmentController extends ChangeNotifier {
   bool get isBusy =>
       _status == FaceControllerStatus.loadingStatus ||
       _status == FaceControllerStatus.sampling ||
-      _status == FaceControllerStatus.submitting ||
-      _status == FaceControllerStatus.resetting;
+      _status == FaceControllerStatus.submitting;
 
   Future<void> loadStatus() async {
     if (_status == FaceControllerStatus.loadingStatus) {
@@ -70,23 +68,6 @@ class FaceEnrollmentController extends ChangeNotifier {
     _setState(status: FaceControllerStatus.loadingStatus);
     try {
       _faceStatus = await _repository.loadStatus();
-      _setState(status: FaceControllerStatus.loaded);
-    } on FaceFailure catch (error) {
-      _applyFailure(error);
-    }
-  }
-
-  Future<void> resetEnrollment() async {
-    if (isBusy) {
-      return;
-    }
-    _setState(status: FaceControllerStatus.resetting);
-    try {
-      await _repository.resetEnrollment();
-      _faceStatus = const FaceStatus(
-        enrolled: false,
-        status: FaceEnrollmentStatus.notEnrolled,
-      );
       _setState(status: FaceControllerStatus.loaded);
     } on FaceFailure catch (error) {
       _applyFailure(error);
