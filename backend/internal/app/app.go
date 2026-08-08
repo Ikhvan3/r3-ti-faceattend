@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"r3-ti-faceattend/backend/internal/attendance"
+	"r3-ti-faceattend/backend/internal/audit"
 	"r3-ti-faceattend/backend/internal/auth"
 	"r3-ti-faceattend/backend/internal/config"
 	"r3-ti-faceattend/backend/internal/database"
@@ -112,6 +113,11 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			if err != nil {
 				return mux
 			}
+
+			auditRepo := audit.NewPostgresRepository(pool)
+			auditService := audit.NewService(auditRepo, businessLocation)
+			auditHandler := audit.NewHandler(auditService)
+
 			employeeService := user.NewEmployeeService(userRepo, hasher)
 			employeeHandler := user.NewEmployeeHandler(employeeService)
 			attendanceRepo := attendance.NewPostgresRepository(pool)
@@ -122,7 +128,9 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			adminScheduleHandler := attendance.NewAdminScheduleHandler(adminScheduleService)
 			adminAttendanceRepo := attendance.NewAdminAttendancePostgresRepository(pool)
 			adminAttendanceService := attendance.NewAdminAttendanceMonitoringService(adminAttendanceRepo, businessLocation)
-			adminAttendanceHandler := attendance.NewAdminAttendanceMonitoringHandler(adminAttendanceService)
+			adminAttendanceCorrectionRepo := attendance.NewAdminAttendanceCorrectionPostgresRepository(pool, auditRepo)
+			adminAttendanceCorrectionService := attendance.NewAdminAttendanceCorrectionService(adminAttendanceCorrectionRepo, adminAttendanceService, businessLocation)
+			adminAttendanceHandler := attendance.NewAdminAttendanceMonitoringHandler(adminAttendanceService, adminAttendanceCorrectionService)
 			locationRepo := officelocation.NewPostgresRepository(pool)
 			locationService := officelocation.NewService(locationRepo, locationRepo, businessLocation)
 			locationHandler := officelocation.NewHandler(locationService)
@@ -138,7 +146,8 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 				cfg.FaceDuplicate.SearchTopK,
 			)
 			faceHandler := face.NewHandler(faceService)
-			faceAdminHandler := face.NewAdminHandler(faceService)
+			faceAdminService := face.NewAuditedAdminService(pool, auditRepo)
+			faceAdminHandler := face.NewAdminHandler(faceAdminService)
 			adminOnly := func(next http.Handler) http.Handler {
 				return auth.Authenticate(authService, auth.RequireRole(user.RoleAdmin, next))
 			}
@@ -151,6 +160,7 @@ func newHTTPHandler(cfg config.Config, db health.DatabasePinger) http.Handler {
 			mux.HandleFunc("/api/v1/auth/logout", authHandler.Logout)
 			mux.Handle("/api/v1/auth/me", auth.Authenticate(authService, http.HandlerFunc(authHandler.Me)))
 			mux.Handle("/api/v1/admin/ping", adminOnly(http.HandlerFunc(auth.AdminPing)))
+			mux.Handle("/api/v1/admin/audit-logs", adminOnly(http.HandlerFunc(auditHandler.Collection)))
 			mux.Handle("/api/v1/admin/employees", adminOnly(http.HandlerFunc(employeeHandler.Collection)))
 			mux.Handle("/api/v1/admin/employees/", adminOnly(http.HandlerFunc(employeeHandler.Resource)))
 			mux.Handle("/api/v1/admin/face-enrollments/", adminOnly(http.HandlerFunc(faceAdminHandler.ResetEnrollment)))
