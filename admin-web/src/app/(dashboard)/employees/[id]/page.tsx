@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ConfirmStatusDialog } from "@/app/(dashboard)/employees/_components/confirm-status-dialog";
 import { DetailItem } from "@/app/(dashboard)/employees/_components/detail-item";
 import { PageHeader, SecondaryLink } from "@/app/(dashboard)/employees/_components/page-header";
+import { ResetFaceEnrollmentDialog } from "@/app/(dashboard)/employees/_components/reset-face-enrollment-dialog";
 import { StatusBadge } from "@/app/(dashboard)/employees/_components/status-badge";
 import { SafeApiError } from "@/lib/auth/types";
 import { getEmployeeByID } from "@/lib/server/go-api";
@@ -90,15 +91,23 @@ export default async function EmployeeDetailPage({
               similarity, threshold, dan gambar wajah tidak pernah ditampilkan.
             </p>
           </div>
-          <span
-            className={
-              face?.enrolled
-                ? "inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700"
-                : "inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600"
-            }
-          >
-            {face?.enrolled ? "Terdaftar" : "Belum terdaftar"}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={
+                face?.enrolled
+                  ? "inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700"
+                  : "inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600"
+              }
+            >
+              {face?.enrolled ? "Terdaftar" : "Belum terdaftar"}
+            </span>
+            {face?.enrolled ? (
+              <ResetFaceEnrollmentDialog
+                employeeID={employee.id}
+                employeeName={employee.name}
+              />
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
