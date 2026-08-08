@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const testAuditEntityID = "00000000-0000-4000-8000-000000000099"
+
 type fakeRepository struct {
 	items []Log
 	total int
@@ -30,7 +32,7 @@ func (f *fakeRepository) Count(_ context.Context, filter listQuery) (int, error)
 	return f.total, nil
 }
 
-func TestServiceListNormalizesPaginationAndRange(t *testing.T) {
+func TestServiceListNormalizesPaginationRangeAndEntity(t *testing.T) {
 	repo := &fakeRepository{total: 41, items: []Log{{ID: "audit-1"}}}
 	location := time.FixedZone("Asia/Jakarta", 7*60*60)
 	service := NewService(repo, location)
@@ -38,6 +40,7 @@ func TestServiceListNormalizesPaginationAndRange(t *testing.T) {
 	result, err := service.List(context.Background(), ListFilter{
 		Action:     ActionAttendanceCorrected,
 		EntityType: EntityAttendanceRecord,
+		EntityID:   testAuditEntityID,
 		DateFrom:   "2026-08-01",
 		DateTo:     "2026-08-08",
 		Page:       2,
@@ -48,6 +51,9 @@ func TestServiceListNormalizesPaginationAndRange(t *testing.T) {
 	}
 	if result.Page != 2 || result.PageSize != 20 || result.TotalPages != 3 || result.TotalItems != 41 {
 		t.Fatalf("result = %+v", result)
+	}
+	if repo.last.EntityID != testAuditEntityID {
+		t.Fatalf("entity id = %q, want %q", repo.last.EntityID, testAuditEntityID)
 	}
 	if repo.last.DateFrom == nil || repo.last.DateTo == nil {
 		t.Fatal("date range was not normalized")
@@ -65,6 +71,7 @@ func TestServiceListRejectsInvalidFilter(t *testing.T) {
 	tests := []ListFilter{
 		{Action: Action("UNKNOWN")},
 		{EntityType: EntityType("UNKNOWN")},
+		{EntityID: "not-a-uuid"},
 		{DateFrom: "2026-08-01"},
 		{DateFrom: "2026-08-08", DateTo: "2026-08-01"},
 		{DateFrom: "2026-01-01", DateTo: "2026-08-08"},
