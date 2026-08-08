@@ -25,6 +25,20 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
+  int _historyRefreshVersion = 0;
+
+  void _selectDestination(int index) {
+    if (index == _selectedIndex) {
+      return;
+    }
+
+    setState(() {
+      _selectedIndex = index;
+      if (index == 1) {
+        _historyRefreshVersion++;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,14 +63,16 @@ class _HomePageState extends State<HomePage> {
           index: _selectedIndex,
           children: [
             _AttendanceHomeBody(user: widget.user),
-            const AttendanceHistoryPage(embedded: true),
+            AttendanceHistoryPage(
+              embedded: true,
+              refreshVersion: _historyRefreshVersion,
+            ),
             ProfilePage(user: widget.user, embedded: true),
           ],
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _selectedIndex,
-          onDestinationSelected: (index) =>
-              setState(() => _selectedIndex = index),
+          onDestinationSelected: _selectDestination,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
