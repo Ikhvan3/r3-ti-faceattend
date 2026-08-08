@@ -92,14 +92,14 @@ func (r *AdminAttendanceCorrectionPostgresRepository) Correct(ctx context.Contex
 	}
 
 	before := map[string]any{
-		"check_in_at": oldCheckIn.UTC().Format(time.RFC3339Nano),
+		"check_in_at":  oldCheckIn.UTC().Format(time.RFC3339Nano),
 		"check_out_at": nil,
 	}
 	if oldCheckOut.Valid {
 		before["check_out_at"] = oldCheckOut.Time.UTC().Format(time.RFC3339Nano)
 	}
 	after := map[string]any{
-		"check_in_at": newCheckIn.UTC().Format(time.RFC3339Nano),
+		"check_in_at":  newCheckIn.UTC().Format(time.RFC3339Nano),
 		"check_out_at": nil,
 	}
 	if newCheckOut != nil {
