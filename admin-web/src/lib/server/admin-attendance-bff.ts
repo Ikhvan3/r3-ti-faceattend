@@ -2,6 +2,7 @@ import "server-only";
 
 import { SafeApiError } from "@/lib/auth/types";
 import type {
+  AdminAttendanceCorrectionInput,
   AdminAttendanceDetail,
   AdminAttendanceListQuery,
   AdminAttendanceListResponse,
@@ -30,13 +31,18 @@ type ApiEnvelope<T> = {
   data: T;
 };
 
+type AttendanceRequestOptions = {
+  method?: "GET" | "PATCH";
+  body?: Record<string, unknown>;
+};
+
 export async function getAdminAttendanceSummary(
   date?: string,
 ): Promise<AdminAttendanceSummary> {
   const params = new URLSearchParams();
   if (date) params.set("date", date);
   const suffix = params.size > 0 ? `?${params.toString()}` : "";
-  const result = await attendanceRead<AdminAttendanceSummary>(
+  const result = await attendanceRequestWithSession<AdminAttendanceSummary>(
     `/admin/attendance/summary${suffix}`,
   );
   if (!isAttendanceSummary(result)) {
@@ -54,7 +60,7 @@ export async function getAdminAttendance(
 ): Promise<AdminAttendanceListResponse> {
   const queryString = buildAttendanceQueryParams(query);
   const suffix = queryString ? `?${queryString}` : "";
-  const result = await attendanceRead<AdminAttendanceListResponse>(
+  const result = await attendanceRequestWithSession<AdminAttendanceListResponse>(
     `/admin/attendance${suffix}`,
   );
   if (!isAttendanceListResponse(result)) {
@@ -70,7 +76,7 @@ export async function getAdminAttendance(
 export async function getAdminAttendanceDetail(
   id: string,
 ): Promise<AdminAttendanceDetail> {
-  const result = await attendanceRead<AdminAttendanceDetail>(
+  const result = await attendanceRequestWithSession<AdminAttendanceDetail>(
     `/admin/attendance/${encodeURIComponent(id)}`,
   );
   if (!isAttendanceDetail(result)) {
@@ -83,7 +89,35 @@ export async function getAdminAttendanceDetail(
   return result;
 }
 
-async function attendanceRead<T>(path: string): Promise<T> {
+export async function correctAdminAttendance(
+  id: string,
+  input: AdminAttendanceCorrectionInput,
+): Promise<AdminAttendanceDetail> {
+  const result = await attendanceRequestWithSession<AdminAttendanceDetail>(
+    `/admin/attendance/${encodeURIComponent(id)}/correction`,
+    {
+      method: "PATCH",
+      body: {
+        check_in_time: input.check_in_time,
+        check_out_time: input.check_out_time,
+        reason: input.reason,
+      },
+    },
+  );
+  if (!isAttendanceDetail(result)) {
+    throw new SafeApiError(
+      "INVALID_RESPONSE",
+      "Respons koreksi presensi tidak sesuai.",
+      502,
+    );
+  }
+  return result;
+}
+
+async function attendanceRequestWithSession<T>(
+  path: string,
+  options: AttendanceRequestOptions = {},
+): Promise<T> {
   let accessToken: string | undefined = await readAccessToken();
   if (!accessToken) {
     accessToken = (await refreshAccessToken()) ?? undefined;
@@ -93,7 +127,7 @@ async function attendanceRead<T>(path: string): Promise<T> {
   }
 
   try {
-    return await request<T>(path, accessToken);
+    return await request<T>(path, accessToken, options);
   } catch (error) {
     if (!(error instanceof SafeApiError) || error.code !== "UNAUTHORIZED") {
       throw error;
@@ -104,7 +138,7 @@ async function attendanceRead<T>(path: string): Promise<T> {
   if (!refreshed) {
     throw new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
   }
-  return request<T>(path, refreshed);
+  return request<T>(path, refreshed, options);
 }
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -135,21 +169,32 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-async function request<T>(path: string, accessToken: string): Promise<T> {
+async function request<T>(
+  path: string,
+  accessToken: string,
+  options: AttendanceRequestOptions,
+): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    };
+    if (options.body) {
+      headers["Content-Type"] = "application/json";
+    }
+
     const response = await fetch(buildGoApiUrl(getGoApiBaseUrl(), path), {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
+      method: options.method ?? "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
       cache: "no-store",
       signal: controller.signal,
     });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
+      const message = readMessage(payload);
       if (response.status === 401) {
         throw new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
       }
@@ -160,11 +205,15 @@ async function request<T>(path: string, accessToken: string): Promise<T> {
         throw new SafeApiError("NOT_FOUND", "Presensi tidak ditemukan.", 404);
       }
       if (response.status === 400) {
-        throw new SafeApiError("BAD_REQUEST", "Filter presensi tidak valid.", 400);
+        throw new SafeApiError(
+          "BAD_REQUEST",
+          message ?? "Data presensi tidak valid.",
+          400,
+        );
       }
       throw new SafeApiError(
         "INTERNAL_ERROR",
-        "Layanan backend mengalami gangguan.",
+        message ?? "Layanan backend mengalami gangguan.",
         response.status,
       );
     }
@@ -196,4 +245,10 @@ function isEnvelope<T>(value: unknown): value is ApiEnvelope<T> {
     value.status === "ok" &&
     "data" in value
   );
+}
+
+function readMessage(value: unknown): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  const message = (value as Record<string, unknown>).message;
+  return typeof message === "string" ? message : null;
 }
