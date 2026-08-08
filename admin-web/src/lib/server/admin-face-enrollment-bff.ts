@@ -15,6 +15,7 @@ const REQUEST_TIMEOUT_MS = 8000;
 
 export async function resetEmployeeFaceEnrollmentWithSession(
   employeeID: string,
+  reason: string,
 ): Promise<void> {
   let accessToken = await readAccessToken();
   if (!accessToken) {
@@ -26,7 +27,7 @@ export async function resetEmployeeFaceEnrollmentWithSession(
   }
 
   try {
-    await sendReset(employeeID, accessToken);
+    await sendReset(employeeID, reason, accessToken);
     return;
   } catch (error) {
     if (!(error instanceof SafeApiError) || error.code !== "UNAUTHORIZED") {
@@ -39,7 +40,7 @@ export async function resetEmployeeFaceEnrollmentWithSession(
     throw new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
   }
 
-  await sendReset(employeeID, refreshed);
+  await sendReset(employeeID, reason, refreshed);
 }
 
 async function refreshAdminAccessToken(): Promise<string | null> {
@@ -68,7 +69,11 @@ async function refreshAdminAccessToken(): Promise<string | null> {
   }
 }
 
-async function sendReset(employeeID: string, accessToken: string): Promise<void> {
+async function sendReset(
+  employeeID: string,
+  reason: string,
+  accessToken: string,
+): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -84,7 +89,9 @@ async function sendReset(employeeID: string, accessToken: string): Promise<void>
         headers: {
           Authorization: `Bearer ${accessToken}`,
           Accept: "application/json",
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({ reason }),
         cache: "no-store",
         signal: controller.signal,
       },
@@ -132,7 +139,11 @@ async function readPayload(
 
 function mapError(status: number, message?: string): SafeApiError {
   if (status === 400) {
-    return new SafeApiError("BAD_REQUEST", "Pegawai tidak valid.", 400);
+    return new SafeApiError(
+      "BAD_REQUEST",
+      message ?? "User atau alasan reset enrollment tidak valid.",
+      400,
+    );
   }
   if (status === 401) {
     return new SafeApiError("UNAUTHORIZED", "Session tidak valid.", 401);
