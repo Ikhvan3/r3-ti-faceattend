@@ -3,7 +3,6 @@ package audit
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -61,15 +60,17 @@ func (r *PostgresRepository) List(ctx context.Context, filter listQuery) ([]Log,
 		FROM audit_logs
 		WHERE ($1 = '' OR action = $1)
 			AND ($2 = '' OR entity_type = $2)
-			AND ($3::timestamptz IS NULL OR created_at >= $3)
-			AND ($4::timestamptz IS NULL OR created_at < $4)
+			AND ($3 = '' OR entity_id = $3::uuid)
+			AND ($4::timestamptz IS NULL OR created_at >= $4)
+			AND ($5::timestamptz IS NULL OR created_at < $5)
 		ORDER BY created_at DESC, id DESC
-		LIMIT $5 OFFSET $6
+		LIMIT $6 OFFSET $7
 	`
 
 	rows, err := r.pool.Query(ctx, query,
 		string(filter.Action),
 		string(filter.EntityType),
+		filter.EntityID,
 		filter.DateFrom,
 		filter.DateTo,
 		filter.PageSize,
@@ -100,13 +101,15 @@ func (r *PostgresRepository) Count(ctx context.Context, filter listQuery) (int, 
 		FROM audit_logs
 		WHERE ($1 = '' OR action = $1)
 			AND ($2 = '' OR entity_type = $2)
-			AND ($3::timestamptz IS NULL OR created_at >= $3)
-			AND ($4::timestamptz IS NULL OR created_at < $4)
+			AND ($3 = '' OR entity_id = $3::uuid)
+			AND ($4::timestamptz IS NULL OR created_at >= $4)
+			AND ($5::timestamptz IS NULL OR created_at < $5)
 	`
 	var count int
 	if err := r.pool.QueryRow(ctx, query,
 		string(filter.Action),
 		string(filter.EntityType),
+		filter.EntityID,
 		filter.DateFrom,
 		filter.DateTo,
 	).Scan(&count); err != nil {
@@ -146,9 +149,6 @@ func scanLog(scanner logScanner) (Log, error) {
 		&afterJSON,
 		&item.CreatedAt,
 	); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return Log{}, err
-		}
 		return Log{}, err
 	}
 	item.Action = Action(action)
